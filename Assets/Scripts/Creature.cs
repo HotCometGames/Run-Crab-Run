@@ -28,6 +28,7 @@ public abstract class Creature : MonoBehaviour
     protected Rigidbody2D rb;
     protected Transform player;
     protected PlayerController playerController;
+    private SpriteRenderer spriteRenderer;
 
     protected Vector2 spawnPoint;
     private Vector2 wanderTarget;
@@ -36,6 +37,7 @@ public abstract class Creature : MonoBehaviour
     protected virtual void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
         spawnPoint = transform.position;
 
         var playerObj = GameObject.FindGameObjectWithTag("Player");
@@ -74,7 +76,23 @@ public abstract class Creature : MonoBehaviour
     protected void MoveTowards(Vector2 target, float speed)
     {
         Vector2 dir = (target - rb.position).normalized;
-        rb.MovePosition(rb.position + dir * speed * Time.fixedDeltaTime);
+        MoveInDirection(dir, speed);
+    }
+
+    // All creature movement goes through this helper so their sprites consistently face
+    // the direction they are travelling. Art that uses full directional animations can
+    // replace this with animator parameters without changing creature behaviour.
+    protected void MoveInDirection(Vector2 direction, float speed)
+    {
+        if (direction.sqrMagnitude <= 0.0001f) return;
+
+        direction.Normalize();
+        rb.MovePosition(rb.position + direction * speed * Time.fixedDeltaTime);
+
+        if (spriteRenderer != null && Mathf.Abs(direction.x) > 0.01f)
+        {
+            spriteRenderer.flipX = direction.x < 0f;
+        }
     }
 
     // Wanders to random points around this creature's spawn location, forever,
@@ -83,8 +101,7 @@ public abstract class Creature : MonoBehaviour
     {
         while (true)
         {
-            Vector2 offset = Random.insideUnitCircle * data.wanderRadius;
-            wanderTarget = spawnPoint + offset;
+            wanderTarget = ChooseWanderTarget();
 
             while (Vector2.Distance(rb.position, wanderTarget) > 0.15f)
             {
@@ -99,6 +116,13 @@ public abstract class Creature : MonoBehaviour
 
     // Override in a subclass to bail out of wandering early (e.g. a predator that just spotted the player).
     protected virtual bool ShouldInterruptWander() => false;
+
+    // Harmless animals can override this to choose a more social wander destination.
+    protected virtual Vector2 ChooseWanderTarget()
+    {
+        Vector2 offset = Random.insideUnitCircle * data.wanderRadius;
+        return spawnPoint + offset;
+    }
 
     protected void StartWandering()
     {

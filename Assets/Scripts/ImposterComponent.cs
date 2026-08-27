@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 
 // Design doc section 8 + 28 ("I'd actually make Imposter a modifier/component, rather
 // than making every disguised creature a completely separate AI type").
@@ -43,6 +44,10 @@ public class ImposterComponent : MonoBehaviour
     [Tooltip("Small child trigger zone — separate from the hidden predator's own DetectionZone — that fires the reveal when the player gets close enough.")]
     public DetectionZone revealZone;
 
+    [Header("Feedback")]
+    [Tooltip("Hook up the reveal sting, sprite swap, particle flash, or camera punch here. This event fires once, at the moment the disguise breaks.")]
+    public UnityEvent onRevealed;
+
     private HarmlessAnimal disguise;
     private bool revealed;
 
@@ -71,6 +76,10 @@ public class ImposterComponent : MonoBehaviour
     private void Reveal()
     {
         revealed = true;
+
+        // Invoke feedback before the behaviour swap so effects can still use the
+        // harmless appearance for their first frame.
+        onRevealed?.Invoke();
 
         disguise.enabled = false; // stops wander/flee coroutines via HarmlessAnimal.OnDisable
 

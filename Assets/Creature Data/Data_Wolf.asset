@@ -18,7 +18,7 @@ MonoBehaviour:
   fleeSpeed: 3
   chaseSpeed: 4.6
   detectionRange: 8
-  attackRange: 2.3
+  attackRange: 0.6
   attackCooldown: 1
   loseInterestTime: 5
   wanderRadius: 6

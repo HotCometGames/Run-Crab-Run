@@ -147,7 +147,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      benten_0: 860421988702810006
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

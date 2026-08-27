@@ -14,6 +14,7 @@ public class HarmlessAnimal : Creature
     public State CurrentState { get; private set; } = State.Wander;
 
     private Transform fleeingFrom;
+    private float fleeUntil;
 
     private void OnEnable()
     {
@@ -32,7 +33,8 @@ public class HarmlessAnimal : Creature
         // Stop fleeing once the threat is far enough away, then resume wandering.
         if (CurrentState == State.Flee && fleeingFrom != null)
         {
-            if (Vector2.Distance(transform.position, fleeingFrom.position) > data.detectionRange * 1.5f)
+            bool threatIsFarAway = Vector2.Distance(transform.position, fleeingFrom.position) > data.detectionRange * 1.5f;
+            if (threatIsFarAway && Time.time >= fleeUntil)
             {
                 EndFlee();
             }
@@ -44,7 +46,7 @@ public class HarmlessAnimal : Creature
         if (CurrentState == State.Flee && fleeingFrom != null)
         {
             Vector2 away = ((Vector2)transform.position - (Vector2)fleeingFrom.position).normalized;
-            rb.MovePosition(rb.position + away * data.fleeSpeed * Time.fixedDeltaTime);
+            MoveInDirection(away, data.fleeSpeed);
         }
     }
 
@@ -54,15 +56,22 @@ public class HarmlessAnimal : Creature
         // so this one check covers both cases automatically.
         if (other.CompareTag("Predator"))
         {
-            StartFlee(other.transform);
+            StartFlee(other.transform, data.minFleeTime);
+        }
+        else if (other.CompareTag("Player") && Random.value < data.playerAvoidanceChance)
+        {
+            // This is deliberately subtle and probabilistic: a normal animal can shy
+            // away, but an imposter still has no reliable visual tell before revealing.
+            StartFlee(other.transform, data.playerAvoidanceTime);
         }
     }
 
     protected override void HandleDetectionExit(Collider2D other) { /* handled by distance check in Update */ }
 
-    private void StartFlee(Transform threat)
+    private void StartFlee(Transform threat, float minimumDuration)
     {
         fleeingFrom = threat;
+        fleeUntil = Time.time + minimumDuration;
         CurrentState = State.Flee;
         StopWandering();
     }
@@ -70,6 +79,7 @@ public class HarmlessAnimal : Creature
     private void EndFlee()
     {
         fleeingFrom = null;
+        fleeUntil = 0f;
         CurrentState = State.Wander;
         StartWandering();
     }
@@ -80,4 +90,24 @@ public class HarmlessAnimal : Creature
     }
 
     protected override bool ShouldInterruptWander() => CurrentState == State.Flee;
+
+    protected override Vector2 ChooseWanderTarget()
+    {
+        // Sheep are gently social and deer occasionally move with a nearby animal.
+        // This creates natural-looking groups without making every animal clump up.
+        if (Random.value < data.flockTargetChance && data.flockSearchRadius > 0f)
+        {
+            Collider2D[] nearby = Physics2D.OverlapCircleAll(transform.position, data.flockSearchRadius);
+            foreach (Collider2D candidate in nearby)
+            {
+                if (candidate.gameObject != gameObject && candidate.CompareTag("Animal"))
+                {
+                    Vector2 offset = Random.insideUnitCircle * data.flockArrivalRadius;
+                    return (Vector2)candidate.transform.position + offset;
+                }
+            }
+        }
+
+        return base.ChooseWanderTarget();
+    }
 }

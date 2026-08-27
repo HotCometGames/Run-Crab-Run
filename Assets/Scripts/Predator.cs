@@ -166,7 +166,8 @@ public abstract class Predator : Creature
         StartWandering();
     }
 
-    // One-hit kill per design doc section 16.
+    // PlayerSurvival determines the actual health pool; the default game setup uses
+    // three hits, which leaves room for the damage-feedback effect.
     protected virtual void Attack()
     {
         if (attackTimer > 0f) return;
