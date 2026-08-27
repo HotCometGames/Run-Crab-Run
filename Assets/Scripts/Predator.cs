@@ -8,6 +8,9 @@ using UnityEngine;
 // should only happen once this predator is actually "active" — that's what lets an
 // imposter's hidden Wolf component sit dormant until the reveal.
 //
+// Predators have an invisible hunger bar that drains over time. If it hits 0, the
+// predator dies. Eating a prey animal (tagged "Animal") restores hunger.
+//
 // UNITY SETUP for a standalone predator (e.g. Wolf prefab):
 //   - Standard Creature setup (Rigidbody2D, physical collider, DetectionZone child).
 //   - Add the concrete subclass (Wolf.cs or Fox.cs), NOT this class directly (it's abstract).
@@ -15,31 +18,54 @@ using UnityEngine;
 //   - You do NOT need to manually set the Tag — OnEnable sets it to "Predator" automatically.
 public abstract class Predator : Creature
 {
-    public enum State { Wander, Chase, Search }
+    public enum State { Wander, Chase, ChasePrey, Search }
     public State CurrentState { get; protected set; } = State.Wander;
 
     protected Vector2 lastKnownPlayerPos;
     protected float searchTimer;
+    public float attackTimer = 0;
+
+    [Header("Hunger (invisible)")]
+    public float hunger;
+
+    private Transform chasingPrey;
+    private const string TagAnimal = "Animal";
 
     private void OnEnable()
     {
         gameObject.tag = "Predator";
         CurrentState = State.Wander;
+        hunger = data.maxHunger;
         StartWandering();
     }
 
     private void OnDisable()
     {
         StopWandering();
+        chasingPrey = null;
     }
 
     protected virtual void FixedUpdate()
     {
+        if (attackTimer > 0f)
+            attackTimer -= Time.fixedDeltaTime;
+
+        if (data.maxHunger > 0f)
+        {
+            hunger -= data.hungerDrainPerSecond * Time.fixedDeltaTime;
+            if (hunger <= 0f)
+            {
+                hunger = 0f;
+                Die();
+                return;
+            }
+        }
+
         switch (CurrentState)
         {
             case State.Chase: DoChase(); break;
+            case State.ChasePrey: DoChasePrey(); break;
             case State.Search: DoSearch(); break;
-            // Wander is driven by the coroutine in the base Creature class.
         }
     }
 
@@ -60,9 +86,32 @@ public abstract class Predator : Creature
         {
             Attack();
         }
-        else if (DistanceToPlayer() > data.detectionRange * 1.6f)
+        else if (DistanceToPlayer() > data.detectionRange)
         {
             BeginSearch();
+        }
+    }
+
+    private void DoChasePrey()
+    {
+        if (chasingPrey == null)
+        {
+            EndChasePrey();
+            return;
+        }
+
+        float dist = Vector2.Distance(rb.position, chasingPrey.position);
+        if (dist > data.detectionRange * 2f)
+        {
+            EndChasePrey();
+            return;
+        }
+
+        MoveTowards(chasingPrey.position, data.chaseSpeed);
+
+        if (dist <= data.attackRange)
+        {
+            EatPrey();
         }
     }
 
@@ -86,12 +135,28 @@ public abstract class Predator : Creature
     protected virtual void BeginChase()
     {
         CurrentState = State.Chase;
+        chasingPrey = null;
         StopWandering();
+    }
+
+    private void BeginChasePrey(Transform prey)
+    {
+        CurrentState = State.ChasePrey;
+        chasingPrey = prey;
+        StopWandering();
+    }
+
+    private void EndChasePrey()
+    {
+        chasingPrey = null;
+        CurrentState = State.Wander;
+        StartWandering();
     }
 
     protected virtual void BeginSearch()
     {
         CurrentState = State.Search;
+        chasingPrey = null;
         searchTimer = data.loseInterestTime;
     }
 
@@ -104,19 +169,63 @@ public abstract class Predator : Creature
     // One-hit kill per design doc section 16.
     protected virtual void Attack()
     {
-        playerController?.Die();
+        if (attackTimer > 0f) return;
+        attackTimer = data.attackCooldown;
+        player.GetComponent<PlayerSurvival>()?.TakeDamage(1f);
+    }
+
+    private void EatPrey()
+    {
+        if (attackTimer > 0f) return;
+        attackTimer = data.attackCooldown;
+
+        hunger = Mathf.Min(hunger + data.hungerOnEat, data.maxHunger);
+
+        if (chasingPrey != null)
+        {
+            var animal = chasingPrey.GetComponent<HarmlessAnimal>();
+            if (animal != null) animal.Die();
+        }
+
+        EndChasePrey();
+    }
+
+    private void Die()
+    {
+        Destroy(gameObject);
     }
 
     protected override void HandleDetectionEnter(Collider2D other)
     {
-        if (!enabled) return; // defensive: an imposter's hidden predator may still be wired up while disabled
-        if (CurrentState == State.Wander && other.CompareTag("Player") && !PlayerIsHidden())
+        if (!enabled) return;
+
+        if (CurrentState == State.Wander || CurrentState == State.Search)
         {
-            BeginChase();
+            if (other.CompareTag("Player") && !PlayerIsHidden())
+            {
+                BeginChase();
+                return;
+            }
+
+            if (other.CompareTag(TagAnimal) && CurrentState == State.Wander)
+            {
+                var animal = other.GetComponent<HarmlessAnimal>();
+                if (animal != null && animal.enabled)
+                {
+                    BeginChasePrey(other.transform);
+                }
+            }
+        }
+        else if (CurrentState == State.ChasePrey)
+        {
+            if (other.CompareTag("Player") && !PlayerIsHidden())
+            {
+                BeginChase();
+            }
         }
     }
 
-    protected override void HandleDetectionExit(Collider2D other) { /* range loss is handled inside DoChase/DoSearch */ }
+    protected override void HandleDetectionExit(Collider2D other) { /* range loss is handled inside DoChase/DoSearch/DoChasePrey */ }
 
     protected override bool ShouldInterruptWander() => CurrentState != State.Wander;
 

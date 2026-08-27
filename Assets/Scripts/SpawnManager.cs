@@ -32,6 +32,7 @@ public class SpawnManager : MonoBehaviour
 
     private IEnumerator SpawnLoop()
     {
+        yield return new WaitForSeconds(1f); // wait a few seconds before first spawn
         while (true)
         {
             float interval = difficulty != null ? difficulty.CurrentTier.spawnInterval : 8f;
@@ -48,7 +49,7 @@ public class SpawnManager : MonoBehaviour
         Transform point = spawnPoints[Random.Range(0, spawnPoints.Length)];
 
         float imposterChance = difficulty != null ? difficulty.CurrentTier.imposterChance : 0.15f;
-        bool spawnPredator = Random.value < 0.5f; // roughly half predators, half animals
+        bool spawnPredator = Random.value < 0.3f; // roughly 30% predators, 70% animals
 
         GameObject prefab = null;
         if (spawnPredator && predatorPrefabs.Length > 0)

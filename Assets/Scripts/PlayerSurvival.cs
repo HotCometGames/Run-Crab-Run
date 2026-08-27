@@ -20,6 +20,12 @@ public class PlayerSurvival : MonoBehaviour
     public float thirst = 100f;
     public float thirstDrainPerSecond = 1f; // slightly faster than hunger per design doc section 5
 
+    [Header("Health")]
+    public float maxHealth = 3f;
+    public float health = 3f;
+    public float timeToRegenHealth = 15f; // seconds of not taking damage before health starts to regen
+    public float lastDamageTime = 0f; // time of last damage taken, used to determine when to start regen
+
     private PlayerController controller;
 
     private void Awake()
@@ -36,6 +42,16 @@ public class PlayerSurvival : MonoBehaviour
         hunger = Mathf.Clamp(hunger, 0f, maxHunger);
         thirst = Mathf.Clamp(thirst, 0f, maxThirst);
 
+        if (lastDamageTime >= timeToRegenHealth && health < maxHealth)
+        {
+            health += 1; // regen 1 health per second
+            health = Mathf.Clamp(health, 0f, maxHealth);
+            lastDamageTime = 0f; // reset timer after regen
+        } else
+        {
+            lastDamageTime += Time.deltaTime;
+        }
+
         if (hunger <= 0f || thirst <= 0f)
         {
             controller.Die();
@@ -45,4 +61,14 @@ public class PlayerSurvival : MonoBehaviour
     // Called by ResourceNode.cs when the player eats/drinks.
     public void ConsumeFood(float amount) => hunger = Mathf.Clamp(hunger + amount, 0f, maxHunger);
     public void ConsumeWater(float amount) => thirst = Mathf.Clamp(thirst + amount, 0f, maxThirst);
+    public void TakeDamage(float amount)
+    {
+        health -= amount;
+        lastDamageTime = 0;
+
+        if (health <= 0f)
+        {
+            controller.Die();
+        }
+    }
 }

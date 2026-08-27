@@ -25,6 +25,7 @@ public class UIManager : MonoBehaviour
     [Header("HUD")]
     public Slider hungerBar;
     public Slider thirstBar;
+    public Slider healthBar;
     public PlayerSurvival playerSurvival;
 
     [Header("Death Screen")]
@@ -43,6 +44,7 @@ public class UIManager : MonoBehaviour
         if (playerSurvival == null) return;
         if (hungerBar != null) hungerBar.value = playerSurvival.hunger / playerSurvival.maxHunger;
         if (thirstBar != null) thirstBar.value = playerSurvival.thirst / playerSurvival.maxThirst;
+        if (healthBar != null) healthBar.value = playerSurvival.health / playerSurvival.maxHealth;
     }
 
     // Called by GameManager.OnPlayerDeath().

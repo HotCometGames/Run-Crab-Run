@@ -74,5 +74,10 @@ public class HarmlessAnimal : Creature
         StartWandering();
     }
 
+    public void Die()
+    {
+        Destroy(gameObject);
+    }
+
     protected override bool ShouldInterruptWander() => CurrentState == State.Flee;
 }

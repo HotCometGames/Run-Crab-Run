@@ -19,6 +19,7 @@ MonoBehaviour:
   chaseSpeed: 4.5
   detectionRange: 5
   attackRange: 0.6
+  attackCooldown: 0.6
   loseInterestTime: 3
   wanderRadius: 6
   minWanderPause: 1

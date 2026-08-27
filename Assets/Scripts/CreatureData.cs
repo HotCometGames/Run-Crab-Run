@@ -27,6 +27,8 @@ public class CreatureData : ScriptableObject
     public float detectionRange = 5f;
     [Tooltip("Distance at which a predator's Attack() fires (one-hit kill per design doc section 16).")]
     public float attackRange = 0.6f;
+    [Tooltip("Cooldown time between a predator's Attack() calls (one-hit kill per design doc section 16).")]
+    public float attackCooldown = 0.6f;
     [Tooltip("How long a predator keeps searching after losing the player before giving up.")]
     public float loseInterestTime = 3f;
 
@@ -34,4 +36,12 @@ public class CreatureData : ScriptableObject
     public float wanderRadius = 6f;
     public float minWanderPause = 1f;
     public float maxWanderPause = 3f;
+
+    [Header("Predator Hunger (invisible)")]
+    [Tooltip("Max hunger for predators. Drains over time; predator dies at 0.")]
+    public float maxHunger = 100f;
+    [Tooltip("Hunger lost per second. Predator dies when it hits 0.")]
+    public float hungerDrainPerSecond = 5f;
+    [Tooltip("Hunger restored when the predator eats a prey animal.")]
+    public float hungerOnEat = 40f;
 }
