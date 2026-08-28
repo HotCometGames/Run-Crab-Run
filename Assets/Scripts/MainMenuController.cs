@@ -1,88 +1,113 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// Runtime-built placeholder menu. Keeping it in code lets the team iterate on the
-// game without waiting for final UI art; the artist can later replace these panels
-// with designed prefabs while retaining the public button methods.
+// The menu is built at runtime so placeholder visuals remain easy to replace with the
+// artist's final work. Layout groups, anchors, and scroll views keep every page usable
+// across different game-view sizes without hand-positioned text blocks.
 public class MainMenuController : MonoBehaviour
 {
-    private static bool skipMenuOnce;
+    private enum Page { Main, HowToPlay, Settings, Credits }
 
-    private const float PanelWidth = 520f;
-    private const float ButtonHeight = 54f;
+    private sealed class MenuOption
+    {
+        public string normalText;
+        public string selectedText;
+        public Text label;
+        public Button button;
+        public RectTransform visualTransform;
+        public float selectedScale;
+        public UnityEngine.Events.UnityAction action;
+    }
+
+    [Tooltip("The gameplay scene loaded by the Play option.")]
+    public string gameplaySceneName = "SampleScene";
+
+    private readonly List<MenuOption> mainOptions = new List<MenuOption>();
 
     private Font font;
     private GameObject root;
-    private GameObject mainPanel;
-    private GameObject howToPlayPanel;
-    private GameObject settingsPanel;
-    private GameObject creditsPanel;
-    private Slider musicSlider;
-    private Slider effectsSlider;
+    private GameObject mainPage;
+    private GameObject howToPlayPage;
+    private GameObject settingsPage;
+    private GameObject creditsPage;
     private Text musicValueText;
     private Text effectsValueText;
+    private int selectedOption;
+    private Page activePage;
 
-    public static void EnsureExists()
-    {
-        if (FindFirstObjectByType<MainMenuController>() != null) return;
-        new GameObject("Main Menu").AddComponent<MainMenuController>();
-    }
-
-    public static void SkipNextMenuOnce()
-    {
-        skipMenuOnce = true;
-    }
+    // A lightweight sketchbook palette: cream paper, charcoal pencil, and pastel ink.
+    private readonly Color backgroundColor = new Color(0.98f, 0.94f, 0.84f, 1f);
+    private readonly Color primaryTextColor = new Color(0.17f, 0.14f, 0.12f, 1f);
+    private readonly Color mutedTextColor = new Color(0.42f, 0.35f, 0.30f, 1f);
+    private readonly Color accentColor = new Color(0.78f, 0.31f, 0.25f, 1f);
+    private readonly Color pastelTrackColor = new Color(0.80f, 0.71f, 0.62f, 1f);
+    private readonly Color pastelFillColor = new Color(0.94f, 0.56f, 0.39f, 1f);
 
     private void Awake()
     {
-        font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        CreateMenu();
+        font = LoadComicSans();
+        EnsureMenuCamera();
+        EnsureEventSystem();
+        BuildMenu();
+        Time.timeScale = 1f;
+        ShowMain();
+    }
 
-        if (skipMenuOnce)
+    private void Update()
+    {
+        AnimateMainSelection();
+
+        if (activePage == Page.Main && mainOptions.Count > 0)
         {
-            skipMenuOnce = false;
-            StartRun();
+            if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S))
+                SetMainSelection((selectedOption + 1) % mainOptions.Count);
+            else if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W))
+                SetMainSelection((selectedOption - 1 + mainOptions.Count) % mainOptions.Count);
+            else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+                mainOptions[selectedOption].action.Invoke();
         }
-        else
+        else if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Backspace) ||
+                 Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
         {
-            Time.timeScale = 0f;
             ShowMain();
         }
     }
 
     public void StartRun()
     {
-        root.SetActive(false);
         Time.timeScale = 1f;
+        SceneManager.LoadScene(gameplaySceneName);
     }
 
     public void ShowMain()
     {
         root.SetActive(true);
-        SetOnlyPanelActive(mainPanel);
+        SetActivePage(Page.Main);
+        SetMainSelection(0);
     }
 
-    public void ShowHowToPlay() => SetOnlyPanelActive(howToPlayPanel);
-    public void ShowSettings() => SetOnlyPanelActive(settingsPanel);
-    public void ShowCredits() => SetOnlyPanelActive(creditsPanel);
+    public void ShowHowToPlay() => SetActivePage(Page.HowToPlay);
+    public void ShowSettings() => SetActivePage(Page.Settings);
+    public void ShowCredits() => SetActivePage(Page.Credits);
 
     public void SetMusicVolume(float value)
     {
         GameAudioSettings.SetMusicVolume(value);
-        musicValueText.text = Percentage(value);
+        if (musicValueText != null) musicValueText.text = Percentage(value);
     }
 
     public void SetEffectsVolume(float value)
     {
         GameAudioSettings.SetEffectsVolume(value);
-        effectsValueText.text = Percentage(value);
+        if (effectsValueText != null) effectsValueText.text = Percentage(value);
     }
 
-    private void CreateMenu()
+    private void BuildMenu()
     {
-        EnsureEventSystem();
-
         root = new GameObject("Start Screen", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         root.transform.SetParent(transform, false);
 
@@ -95,136 +120,453 @@ public class MainMenuController : MonoBehaviour
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
 
-        Image background = AddImage(root.transform, "Background", new Color(0.04f, 0.09f, 0.1f, 0.98f));
+        Image background = CreateImage(root.transform, "Background", backgroundColor);
         Stretch(background.rectTransform);
 
-        mainPanel = CreatePanel("Main Panel");
-        CreateTitle(mainPanel.transform, "RUN CRAB RUN", 64, new Color(0.94f, 0.82f, 0.55f));
-        CreateSubtitle(mainPanel.transform, "Trust no one. Survive as long as you can.");
-        CreateButton(mainPanel.transform, "Start", StartRun);
-        CreateButton(mainPanel.transform, "How to Play", ShowHowToPlay);
-        CreateButton(mainPanel.transform, "Settings", ShowSettings);
-        CreateButton(mainPanel.transform, "Credits", ShowCredits);
+        mainPage = CreateFullPage("Main Page");
+        howToPlayPage = CreateFullPage("How To Play Page");
+        settingsPage = CreateFullPage("Settings Page");
+        creditsPage = CreateFullPage("Credits Page");
 
-        howToPlayPanel = CreatePanel("How To Play Panel");
-        CreateTitle(howToPlayPanel.transform, "HOW TO PLAY", 38, Color.white);
-        CreateBodyText(howToPlayPanel.transform,
-            "Move with WASD or Arrow Keys\nSprint with Left Shift\n\nFind berries to restore hunger and stand in wells to restore thirst.\nHide in bushes to break a ground predator's chase.\n\nDeer and sheep look harmless, but any one of them could be an Imposter.\nYou cannot fight—run, hide, and survive.");
-        CreateButton(howToPlayPanel.transform, "Back", ShowMain);
-
-        settingsPanel = CreatePanel("Settings Panel");
-        CreateTitle(settingsPanel.transform, "SETTINGS", 38, Color.white);
-        CreateBodyText(settingsPanel.transform, "CONTROLS\nMove: WASD / Arrow Keys\nSprint: Left Shift");
-        musicSlider = CreateSlider(settingsPanel.transform, "Music Volume", GameAudioSettings.MusicVolume, out musicValueText, SetMusicVolume);
-        effectsSlider = CreateSlider(settingsPanel.transform, "Effects Volume", GameAudioSettings.EffectsVolume, out effectsValueText, SetEffectsVolume);
-        CreateButton(settingsPanel.transform, "Back", ShowMain);
-
-        creditsPanel = CreatePanel("Credits Panel");
-        CreateTitle(creditsPanel.transform, "CREDITS", 38, Color.white);
-        CreateBodyText(creditsPanel.transform,
-            "RUN CRAB RUN\n\nDesign & Development Team\n\nArt: Annabelle\nUI & Level Design: Emily\nCreature AI: Rener\nSystems & Polish: Caleb\n\nMade for Brackeys Game Jam 2026");
-        CreateButton(creditsPanel.transform, "Back", ShowMain);
+        BuildMainPage();
+        BuildHowToPlayPage();
+        BuildSettingsPage();
+        BuildCreditsPage();
     }
 
-    private GameObject CreatePanel(string name)
+    private void BuildMainPage()
     {
-        GameObject panel = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
-        panel.transform.SetParent(root.transform, false);
+        GameObject column = CreateCenteredColumn(mainPage.transform, "Main Menu Column", 760f);
+        VerticalLayoutGroup layout = column.GetComponent<VerticalLayoutGroup>();
+        layout.spacing = 10f;
+        layout.padding = new RectOffset(30, 30, 16, 16);
 
-        RectTransform rect = panel.GetComponent<RectTransform>();
+        Text title = CreateText(column.transform, "Title", "RUN CRAB RUN", 84, TextAnchor.MiddleCenter, accentColor);
+        title.horizontalOverflow = HorizontalWrapMode.Overflow;
+        title.verticalOverflow = VerticalWrapMode.Overflow;
+        SetLayoutHeight(title.gameObject, 112f);
+
+        GameObject choices = new GameObject("Choices", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(LayoutElement));
+        choices.transform.SetParent(column.transform, false);
+        SetLayoutHeight(choices, 254f);
+        VerticalLayoutGroup choicesLayout = choices.GetComponent<VerticalLayoutGroup>();
+        choicesLayout.childAlignment = TextAnchor.MiddleLeft;
+        choicesLayout.childControlWidth = true;
+        choicesLayout.childControlHeight = false;
+        choicesLayout.childForceExpandWidth = true;
+        choicesLayout.childForceExpandHeight = false;
+        choicesLayout.spacing = 4f;
+
+        AddMainOption(choices.transform, "PLAY", 46, 1.16f, StartRun);
+        AddMainOption(choices.transform, "HOW TO PLAY", 30, 1.13f, ShowHowToPlay);
+        AddMainOption(choices.transform, "SETTINGS", 30, 1.13f, ShowSettings);
+        AddMainOption(choices.transform, "CREDITS", 30, 1.13f, ShowCredits);
+    }
+
+    private void BuildHowToPlayPage()
+    {
+        CreatePageTitle(howToPlayPage.transform, "HOW TO PLAY");
+        Transform content = CreateScrollableContent(howToPlayPage.transform, "How To Play Content");
+
+        Transform controls = CreateSection(content, "Controls Section", "CONTROLS");
+        AddInfoRow(controls, "Move", "WASD / Arrow Keys");
+        AddInfoRow(controls, "Sprint", "Left Shift");
+
+        Transform survival = CreateSection(content, "Survival Section", "SURVIVAL");
+        AddParagraph(survival, "Find berries to restore hunger.");
+        AddParagraph(survival, "Stand in wells to restore thirst.");
+        AddParagraph(survival, "Hide in bushes to escape ground predators.");
+
+        Transform danger = CreateSection(content, "Danger Section", "DANGER");
+        AddParagraph(danger, "Deer and sheep may look harmless, but any one of them could be an Imposter.");
+        AddParagraph(danger, "You cannot fight—run, hide, and survive.");
+        CreateBackChoice(howToPlayPage.transform, ShowMain);
+    }
+
+    private void BuildSettingsPage()
+    {
+        CreatePageTitle(settingsPage.transform, "SETTINGS");
+        Transform content = CreateCenteredPageColumn(settingsPage.transform, "Settings Content", 720f, 26f);
+
+        // The page column owns only the two major sections. Their rows and sliders
+        // are contained by the corresponding nested section layout.
+        Transform controls = CreateSection(content, "Controls Section", "CONTROLS");
+        AddInfoRow(controls, "Move", "WASD / Arrow Keys");
+        AddInfoRow(controls, "Sprint", "Left Shift");
+
+        Transform audio = CreateSection(content, "Audio Section", "AUDIO");
+        CreateVolumeControl(audio, "Music Volume", GameAudioSettings.MusicVolume, out musicValueText, SetMusicVolume);
+        CreateVolumeControl(audio, "Effects Volume", GameAudioSettings.EffectsVolume, out effectsValueText, SetEffectsVolume);
+        CreateBackChoice(settingsPage.transform, ShowMain);
+    }
+
+    private void BuildCreditsPage()
+    {
+        CreatePageTitle(creditsPage.transform, "CREDITS");
+        Transform content = CreateCenteredPageColumn(creditsPage.transform, "Credits Content", 620f, 24f);
+
+        // Every role/name pair is a single child of Credits Content. The outer
+        // column therefore spaces entries without ever splitting a pair apart.
+        AddCredit(content, "Art", "Annabelle");
+        AddCredit(content, "UI & Level Design", "Emily");
+        AddCredit(content, "Creature AI", "Rener");
+        AddCredit(content, "Systems & Polish", "Caleb");
+        CreateBackChoice(creditsPage.transform, ShowMain);
+    }
+
+    private void AddMainOption(Transform parent, string caption, int baseSize, float selectedScale, UnityEngine.Events.UnityAction action)
+    {
+        GameObject optionObject = new GameObject(caption + " Option", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement), typeof(EventTrigger));
+        optionObject.transform.SetParent(parent, false);
+        Image hitArea = optionObject.GetComponent<Image>();
+        hitArea.color = Color.clear; // Pointer target only: no visible button rectangle.
+
+        Button button = optionObject.GetComponent<Button>();
+        button.targetGraphic = hitArea;
+        button.onClick.AddListener(action);
+        SetLayoutHeight(optionObject, caption == "PLAY" ? 82f : 58f);
+
+        Text label = CreateText(optionObject.transform, "Label", caption, baseSize, TextAnchor.MiddleLeft, mutedTextColor);
+        Stretch(label.rectTransform);
+        label.rectTransform.pivot = new Vector2(0f, 0.5f);
+
+        MenuOption option = new MenuOption
+        {
+            normalText = "  " + caption,
+            selectedText = "> " + caption,
+            label = label,
+            button = button,
+            visualTransform = label.rectTransform,
+            selectedScale = selectedScale,
+            action = action
+        };
+        int index = mainOptions.Count;
+        mainOptions.Add(option);
+        EventTrigger trigger = optionObject.GetComponent<EventTrigger>();
+        AddPointerEnter(trigger, () => SetMainSelection(index));
+        AddPointerClick(trigger, action);
+    }
+
+    private void SetMainSelection(int index)
+    {
+        if (mainOptions.Count == 0) return;
+        selectedOption = Mathf.Clamp(index, 0, mainOptions.Count - 1);
+        EventSystem.current?.SetSelectedGameObject(mainOptions[selectedOption].button.gameObject);
+    }
+
+    private void AnimateMainSelection()
+    {
+        if (activePage != Page.Main) return;
+
+        for (int i = 0; i < mainOptions.Count; i++)
+        {
+            MenuOption option = mainOptions[i];
+            bool selected = i == selectedOption;
+            Color targetColor = selected ? primaryTextColor : mutedTextColor;
+            float targetScale = selected ? option.selectedScale : 1f;
+            float blend = 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime);
+
+            // Text size and layout dimensions stay fixed. Scaling only the label's
+            // transform avoids a full layout rebuild whenever selection changes.
+            option.visualTransform.localScale = Vector3.Lerp(
+                option.visualTransform.localScale,
+                Vector3.one * targetScale,
+                blend);
+            option.label.color = Color.Lerp(option.label.color, targetColor, blend);
+
+            string targetText = selected ? option.selectedText : option.normalText;
+            if (option.label.text != targetText) option.label.text = targetText;
+        }
+    }
+
+    private void SetActivePage(Page page)
+    {
+        activePage = page;
+        mainPage.SetActive(page == Page.Main);
+        howToPlayPage.SetActive(page == Page.HowToPlay);
+        settingsPage.SetActive(page == Page.Settings);
+        creditsPage.SetActive(page == Page.Credits);
+    }
+
+    private GameObject CreateFullPage(string name)
+    {
+        GameObject page = new GameObject(name, typeof(RectTransform));
+        page.transform.SetParent(root.transform, false);
+        Stretch(page.GetComponent<RectTransform>());
+        return page;
+    }
+
+    private GameObject CreateCenteredColumn(Transform parent, string name, float width)
+    {
+        GameObject column = new GameObject(name, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        column.transform.SetParent(parent, false);
+        RectTransform rect = column.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(PanelWidth, 0f);
+        rect.sizeDelta = new Vector2(width, 0f);
 
-        Image image = panel.GetComponent<Image>();
-        image.color = new Color(0.1f, 0.18f, 0.19f, 0.98f);
-
-        VerticalLayoutGroup layout = panel.GetComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(36, 36, 30, 30);
-        layout.spacing = 14f;
+        VerticalLayoutGroup layout = column.GetComponent<VerticalLayoutGroup>();
         layout.childAlignment = TextAnchor.MiddleCenter;
         layout.childControlWidth = true;
         layout.childControlHeight = false;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
-
-        ContentSizeFitter fitter = panel.GetComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        return panel;
+        column.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        return column;
     }
 
-    private void CreateTitle(Transform parent, string value, int size, Color color)
+    private Transform CreateCenteredPageColumn(Transform page, string name, float width, float spacing)
     {
-        Text text = CreateText(parent, "Title", value, size, TextAnchor.MiddleCenter, color);
-        SetLayoutHeight(text.gameObject, size + 34f);
+        GameObject column = new GameObject(name, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        column.transform.SetParent(page, false);
+
+        RectTransform rect = column.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(0f, -8f);
+        rect.sizeDelta = new Vector2(width, 0f);
+
+        VerticalLayoutGroup layout = column.GetComponent<VerticalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        layout.spacing = spacing;
+        layout.padding = new RectOffset(0, 0, 4, 4);
+
+        column.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        return column.transform;
     }
 
-    private void CreateSubtitle(Transform parent, string value)
+    private Text CreatePageTitle(Transform parent, string title)
     {
-        Text text = CreateText(parent, "Subtitle", value, 20, TextAnchor.MiddleCenter, new Color(0.78f, 0.84f, 0.83f));
-        SetLayoutHeight(text.gameObject, 46f);
+        Text text = CreateText(parent, "Title", title, 56, TextAnchor.MiddleCenter, accentColor);
+        RectTransform rect = text.rectTransform;
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(0f, -30f);
+        rect.sizeDelta = new Vector2(900f, 64f);
+        return text;
     }
 
-    private void CreateBodyText(Transform parent, string value)
+    private Transform CreateScrollableContent(Transform page, string name)
     {
-        Text text = CreateText(parent, "Body", value, 20, TextAnchor.MiddleCenter, new Color(0.9f, 0.93f, 0.91f));
+        GameObject viewport = new GameObject(name + " Viewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+        viewport.transform.SetParent(page, false);
+        RectTransform viewportRect = viewport.GetComponent<RectTransform>();
+        viewportRect.anchorMin = new Vector2(0f, 0f);
+        viewportRect.anchorMax = new Vector2(1f, 1f);
+        viewportRect.offsetMin = new Vector2(270f, 92f);
+        viewportRect.offsetMax = new Vector2(-270f, -108f);
+        viewport.GetComponent<Image>().color = Color.clear;
+
+        GameObject contentObject = new GameObject(name, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        contentObject.transform.SetParent(viewport.transform, false);
+        RectTransform contentRect = contentObject.GetComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0f, 1f);
+        contentRect.anchorMax = new Vector2(1f, 1f);
+        contentRect.pivot = new Vector2(0.5f, 1f);
+        contentRect.anchoredPosition = Vector2.zero;
+        contentRect.sizeDelta = Vector2.zero;
+
+        VerticalLayoutGroup layout = contentObject.GetComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 4, 16);
+        layout.spacing = 20f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        contentObject.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        ScrollRect scrollRect = viewport.GetComponent<ScrollRect>();
+        scrollRect.viewport = viewportRect;
+        scrollRect.content = contentRect;
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        scrollRect.scrollSensitivity = 24f;
+        return contentObject.transform;
+    }
+
+    // Sections keep related controls together so their compact spacing survives
+    // resolution changes and content growth.
+    private Transform CreateSection(Transform parent, string name, string heading)
+    {
+        Transform section = CreateCompactGroup(parent, name, 6f);
+        AddSectionHeader(section, heading);
+        return section;
+    }
+
+    private Transform CreateCompactGroup(Transform parent, string name, float spacing)
+    {
+        GameObject group = new GameObject(name, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        group.transform.SetParent(parent, false);
+
+        VerticalLayoutGroup layout = group.GetComponent<VerticalLayoutGroup>();
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        layout.spacing = spacing;
+
+        group.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        return group.transform;
+    }
+
+    private void AddSectionHeader(Transform parent, string value)
+    {
+        AddDisplayText(parent, value, 30, TextAnchor.MiddleLeft, accentColor, 34f);
+    }
+
+    private void AddParagraph(Transform parent, string value)
+    {
+        Text text = AddDisplayText(parent, value, 22, TextAnchor.MiddleLeft, primaryTextColor, 34f);
         text.horizontalOverflow = HorizontalWrapMode.Wrap;
         text.verticalOverflow = VerticalWrapMode.Overflow;
-        SetLayoutHeight(text.gameObject, 250f);
     }
 
-    private void CreateButton(Transform parent, string label, UnityEngine.Events.UnityAction action)
+    private void AddInfoRow(Transform parent, string leftValue, string rightValue)
     {
-        GameObject buttonObject = new GameObject(label + " Button", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-        buttonObject.transform.SetParent(parent, false);
-        buttonObject.GetComponent<Image>().color = new Color(0.22f, 0.43f, 0.42f, 1f);
+        GameObject row = new GameObject(leftValue + " Row", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        row.transform.SetParent(parent, false);
+        SetLayoutHeight(row, 32f);
+        HorizontalLayoutGroup layout = row.GetComponent<HorizontalLayoutGroup>();
+        layout.spacing = 20f;
+        layout.childAlignment = TextAnchor.MiddleLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
 
-        Button button = buttonObject.GetComponent<Button>();
-        ColorBlock colors = button.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = new Color(1f, 1f, 1f, 0.9f);
-        colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
-        button.colors = colors;
-        button.onClick.AddListener(action);
-
-        SetLayoutHeight(buttonObject, ButtonHeight);
-        Text text = CreateText(buttonObject.transform, "Label", label, 24, TextAnchor.MiddleCenter, Color.white);
-        Stretch(text.rectTransform);
+        Text left = CreateText(row.transform, "Name", leftValue, 22, TextAnchor.MiddleLeft, primaryTextColor);
+        AddLayoutWidth(left.gameObject, 0f, 1f);
+        Text right = CreateText(row.transform, "Value", rightValue, 22, TextAnchor.MiddleRight, primaryTextColor);
+        AddLayoutWidth(right.gameObject, 280f, 0f);
     }
 
-    private Slider CreateSlider(Transform parent, string label, float value, out Text valueText, UnityEngine.Events.UnityAction<float> onChanged)
+    private void CreateVolumeControl(Transform parent, string label, float value, out Text valueText, UnityEngine.Events.UnityAction<float> onChanged)
     {
-        GameObject group = new GameObject(label, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(LayoutElement));
+        GameObject group = new GameObject(label + " Row", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(LayoutElement));
         group.transform.SetParent(parent, false);
-        SetLayoutHeight(group, 90f);
-
+        SetLayoutHeight(group, 68f);
         VerticalLayoutGroup layout = group.GetComponent<VerticalLayoutGroup>();
         layout.spacing = 4f;
         layout.childControlWidth = true;
         layout.childControlHeight = false;
+        layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
+        layout.childAlignment = TextAnchor.UpperCenter;
 
-        Text labelText = CreateText(group.transform, "Label", label, 20, TextAnchor.MiddleLeft, Color.white);
-        SetLayoutHeight(labelText.gameObject, 28f);
+        GameObject labelRow = new GameObject("Label Row", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        labelRow.transform.SetParent(group.transform, false);
+        SetLayoutHeight(labelRow, 28f);
+        HorizontalLayoutGroup rowLayout = labelRow.GetComponent<HorizontalLayoutGroup>();
+        rowLayout.childAlignment = TextAnchor.MiddleLeft;
+        rowLayout.childControlWidth = true;
+        rowLayout.childControlHeight = false;
+        rowLayout.childForceExpandWidth = true;
+        rowLayout.childForceExpandHeight = false;
 
-        Slider slider = DefaultControls.CreateSlider(new DefaultControls.Resources()).GetComponent<Slider>();
-        slider.name = label + " Slider";
-        slider.transform.SetParent(group.transform, false);
+        Text labelText = CreateText(labelRow.transform, "Label", label, 22, TextAnchor.MiddleLeft, primaryTextColor);
+        AddLayoutWidth(labelText.gameObject, 0f, 1f);
+        valueText = CreateText(labelRow.transform, "Value", Percentage(value), 22, TextAnchor.MiddleRight, accentColor);
+        AddLayoutWidth(valueText.gameObject, 96f, 0f);
+
+        Slider slider = CreateSlider(group.transform, label + " Slider", value);
+        slider.onValueChanged.AddListener(onChanged);
+    }
+
+    private Slider CreateSlider(Transform parent, string name, float value)
+    {
+        // Layout components control only this outer object. Its visual children use
+        // slider-owned anchors, preventing fill/handle images from being stretched.
+        GameObject sliderObject = new GameObject(name, typeof(RectTransform), typeof(Slider), typeof(LayoutElement));
+        sliderObject.transform.SetParent(parent, false);
+        SetLayoutHeight(sliderObject, 30f);
+        Slider slider = sliderObject.GetComponent<Slider>();
         slider.minValue = 0f;
         slider.maxValue = 1f;
-        slider.value = value;
-        slider.onValueChanged.AddListener(onChanged);
-        SetLayoutHeight(slider.gameObject, 28f);
 
-        valueText = CreateText(group.transform, "Value", Percentage(value), 16, TextAnchor.MiddleRight, new Color(0.78f, 0.84f, 0.83f));
-        SetLayoutHeight(valueText.gameObject, 20f);
+        Image background = CreateImage(sliderObject.transform, "Track", pastelTrackColor);
+        RectTransform track = background.rectTransform;
+        track.anchorMin = new Vector2(0f, 0.5f);
+        track.anchorMax = new Vector2(1f, 0.5f);
+        track.offsetMin = new Vector2(12f, -4f);
+        track.offsetMax = new Vector2(-12f, 4f);
+
+        GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
+        fillArea.transform.SetParent(sliderObject.transform, false);
+        RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
+        fillAreaRect.anchorMin = new Vector2(0f, 0.5f);
+        fillAreaRect.anchorMax = new Vector2(1f, 0.5f);
+        fillAreaRect.offsetMin = new Vector2(12f, -4f);
+        fillAreaRect.offsetMax = new Vector2(-12f, 4f);
+        Image fill = CreateImage(fillArea.transform, "Fill", pastelFillColor);
+        Stretch(fill.rectTransform);
+        slider.fillRect = fill.rectTransform;
+
+        GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+        handleArea.transform.SetParent(sliderObject.transform, false);
+        RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
+        handleAreaRect.anchorMin = new Vector2(0f, 0.5f);
+        handleAreaRect.anchorMax = new Vector2(1f, 0.5f);
+        handleAreaRect.offsetMin = new Vector2(12f, -12f);
+        handleAreaRect.offsetMax = new Vector2(-12f, 12f);
+        Image handle = CreateImage(handleArea.transform, "Handle", primaryTextColor);
+        RectTransform handleRect = handle.rectTransform;
+        handleRect.anchorMin = new Vector2(0f, 0.5f);
+        handleRect.anchorMax = new Vector2(0f, 0.5f);
+        handleRect.sizeDelta = new Vector2(20f, 26f);
+        slider.handleRect = handleRect;
+        slider.targetGraphic = handle;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.SetValueWithoutNotify(value);
         return slider;
     }
 
-    private Text CreateText(Transform parent, string name, string value, int size, TextAnchor alignment, Color color)
+    private void AddCredit(Transform parent, string role, string name)
     {
-        GameObject textObject = new GameObject(name, typeof(RectTransform), typeof(Text));
+        Transform credit = CreateCompactGroup(parent, role + " Credit Entry", 6f);
+        AddDisplayText(credit, role, 23, TextAnchor.MiddleCenter, mutedTextColor, 26f);
+        AddDisplayText(credit, name, 29, TextAnchor.MiddleCenter, primaryTextColor, 32f);
+    }
+
+    private Text AddDisplayText(Transform parent, string value, int size, TextAnchor alignment, Color color, float height)
+    {
+        Text text = CreateText(parent, value, value, size, alignment, color);
+        SetLayoutHeight(text.gameObject, height);
+        return text;
+    }
+
+    private void CreateBackChoice(Transform parent, UnityEngine.Events.UnityAction action)
+    {
+        GameObject buttonObject = new GameObject("Back", typeof(RectTransform), typeof(Image), typeof(Button), typeof(EventTrigger));
+        buttonObject.transform.SetParent(parent, false);
+        RectTransform rect = buttonObject.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0f);
+        rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.anchoredPosition = new Vector2(0f, 34f);
+        rect.sizeDelta = new Vector2(250f, 46f);
+        buttonObject.GetComponent<Image>().color = Color.clear;
+        Button button = buttonObject.GetComponent<Button>();
+        button.onClick.AddListener(action);
+        Text label = CreateText(buttonObject.transform, "Label", "> BACK", 27, TextAnchor.MiddleCenter, primaryTextColor);
+        Stretch(label.rectTransform);
+        EventTrigger trigger = buttonObject.GetComponent<EventTrigger>();
+        AddPointerEnter(trigger, () => label.color = accentColor);
+        AddPointerClick(trigger, action);
+    }
+
+    private Text CreateText(Transform parent, string objectName, string value, int size, TextAnchor alignment, Color color)
+    {
+        GameObject textObject = new GameObject(objectName, typeof(RectTransform), typeof(Text));
         textObject.transform.SetParent(parent, false);
         Text text = textObject.GetComponent<Text>();
         text.font = font;
@@ -232,10 +574,11 @@ public class MainMenuController : MonoBehaviour
         text.fontSize = size;
         text.alignment = alignment;
         text.color = color;
+        text.supportRichText = false;
         return text;
     }
 
-    private static Image AddImage(Transform parent, string name, Color color)
+    private static Image CreateImage(Transform parent, string name, Color color)
     {
         GameObject imageObject = new GameObject(name, typeof(RectTransform), typeof(Image));
         imageObject.transform.SetParent(parent, false);
@@ -244,12 +587,20 @@ public class MainMenuController : MonoBehaviour
         return image;
     }
 
-    private void SetOnlyPanelActive(GameObject activePanel)
+    private static void AddPointerEnter(EventTrigger trigger, UnityEngine.Events.UnityAction callback)
     {
-        mainPanel.SetActive(activePanel == mainPanel);
-        howToPlayPanel.SetActive(activePanel == howToPlayPanel);
-        settingsPanel.SetActive(activePanel == settingsPanel);
-        creditsPanel.SetActive(activePanel == creditsPanel);
+        if (trigger.triggers == null) trigger.triggers = new List<EventTrigger.Entry>();
+        EventTrigger.Entry entry = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+        entry.callback.AddListener(_ => callback.Invoke());
+        trigger.triggers.Add(entry);
+    }
+
+    private static void AddPointerClick(EventTrigger trigger, UnityEngine.Events.UnityAction callback)
+    {
+        if (trigger.triggers == null) trigger.triggers = new List<EventTrigger.Entry>();
+        EventTrigger.Entry entry = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
+        entry.callback.AddListener(_ => callback.Invoke());
+        trigger.triggers.Add(entry);
     }
 
     private static void SetLayoutHeight(GameObject gameObject, float height)
@@ -257,6 +608,15 @@ public class MainMenuController : MonoBehaviour
         LayoutElement element = gameObject.GetComponent<LayoutElement>();
         if (element == null) element = gameObject.AddComponent<LayoutElement>();
         element.preferredHeight = height;
+        element.minHeight = height;
+    }
+
+    private static void AddLayoutWidth(GameObject gameObject, float preferredWidth, float flexibleWidth)
+    {
+        LayoutElement element = gameObject.GetComponent<LayoutElement>();
+        if (element == null) element = gameObject.AddComponent<LayoutElement>();
+        element.preferredWidth = preferredWidth;
+        element.flexibleWidth = flexibleWidth;
     }
 
     private static void Stretch(RectTransform rect)
@@ -267,11 +627,42 @@ public class MainMenuController : MonoBehaviour
         rect.offsetMax = Vector2.zero;
     }
 
+    private static Font LoadComicSans()
+    {
+        foreach (string installedFont in Font.GetOSInstalledFontNames())
+        {
+            if (!string.Equals(installedFont, "Comic Sans MS", StringComparison.OrdinalIgnoreCase) &&
+                installedFont.IndexOf("Comic Sans", StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+            Font comicSans = Font.CreateDynamicFontFromOSFont(installedFont, 16);
+            if (comicSans != null) return comicSans;
+        }
+
+        // This prevents a Unity 6 built-in-font exception on machines that do not
+        // have Comic Sans installed, while keeping the menu usable for that player.
+        Debug.LogWarning("Comic Sans MS is not installed; Main Menu is using Unity's safe fallback font.");
+        return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+    }
+
     private static string Percentage(float value) => Mathf.RoundToInt(value * 100f) + "%";
 
     private static void EnsureEventSystem()
     {
         if (FindFirstObjectByType<EventSystem>() != null) return;
         new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+    }
+
+    private static void EnsureMenuCamera()
+    {
+        if (Camera.main != null) return;
+
+        GameObject cameraObject = new GameObject("Main Menu Camera", typeof(Camera));
+        cameraObject.tag = "MainCamera";
+        cameraObject.transform.position = new Vector3(0f, 0f, -10f);
+        Camera menuCamera = cameraObject.GetComponent<Camera>();
+        menuCamera.clearFlags = CameraClearFlags.SolidColor;
+        menuCamera.backgroundColor = new Color(0.98f, 0.94f, 0.84f, 1f);
+        menuCamera.orthographic = true;
     }
 }

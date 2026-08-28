@@ -20,7 +20,6 @@ public class GameManager : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
-        MainMenuController.EnsureExists();
     }
 
     private void Update()
@@ -48,7 +47,14 @@ public class GameManager : MonoBehaviour
     public void Restart()
     {
         Time.timeScale = 1f;
-        MainMenuController.SkipNextMenuOnce();
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    // Used by the death screen's Main Menu button. Keeping navigation here prevents
+    // the gameplay scene from needing any knowledge of menu UI implementation.
+    public void ReturnToMainMenu()
+    {
+        Time.timeScale = 1f;
+        SceneManager.LoadScene("MainMenu");
     }
 }
