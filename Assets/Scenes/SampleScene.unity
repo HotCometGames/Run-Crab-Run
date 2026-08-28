@@ -559,6 +559,9 @@ MonoBehaviour:
   - type: 0
     prefab: {fileID: 6432059271448689407, guid: 6434668ae86f3f9419679cafe84f5b62, type: 3}
     overrideDuration: 0
+  - type: 1
+    prefab: {fileID: 6432059271448689407, guid: 6434668ae86f3f9419679cafe84f5b62, type: 3}
+    overrideDuration: 0
 --- !u!4 &327121565
 Transform:
   m_ObjectHideFlags: 0
