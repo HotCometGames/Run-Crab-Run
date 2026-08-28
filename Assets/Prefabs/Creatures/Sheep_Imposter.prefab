@@ -334,6 +334,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   data: {fileID: 11400000, guid: 34b54668aa48c644b9668e08f0ff17d0, type: 2}
   detectionZone: {fileID: 4726613901767622191}
+  spawnDelay: 1
+  foodSearchRadius: 8
 --- !u!114 &6326126506573061116
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -348,6 +350,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   data: {fileID: 11400000, guid: e1abe061f265e1a40a83de9f6b69c6fd, type: 2}
   detectionZone: {fileID: 4468719321589105742}
+  spawnDelay: 1
+  attackTimer: 0
+  hunger: 0
 --- !u!114 &272865408895030742
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -362,6 +367,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hiddenPredator: {fileID: 6326126506573061116}
   revealZone: {fileID: 4042593149132782515}
+  predatorSprite: {fileID: 21300000, guid: 2a46691d35eb7af42b3009294a5ddb71, type: 3}
 --- !u!1 &8827573037757207629
 GameObject:
   m_ObjectHideFlags: 0

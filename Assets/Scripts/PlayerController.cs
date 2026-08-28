@@ -16,15 +16,21 @@ public class PlayerController : MonoBehaviour
     public float moveSpeed = 3f;
     public float sprintMultiplier = 1.8f;
 
+    [Header("Hiding")]
+    [Range(0.1f, 1f), Tooltip("Alpha when hidden in a bush.")]
+    public float hiddenAlpha = 0.4f;
+
     public bool IsHidden { get; private set; }
     public bool IsSprinting { get; private set; }
 
     private Rigidbody2D rb;
+    private SpriteRenderer spriteRenderer;
     private Vector2 moveInput;
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
     }
 
     private void Update()
@@ -44,12 +50,30 @@ public class PlayerController : MonoBehaviour
     }
 
     // Called by HidingSpot.cs when the crab enters/exits a bush trigger.
-    public void EnterHiding() => IsHidden = true;
-    public void ExitHiding() => IsHidden = false;
+    public void EnterHiding()
+    {
+        IsHidden = true;
+        SetAlpha(hiddenAlpha);
+    }
+
+    public void ExitHiding()
+    {
+        IsHidden = false;
+        SetAlpha(1f);
+    }
+
+    private void SetAlpha(float alpha)
+    {
+        if (spriteRenderer == null) return;
+        Color c = spriteRenderer.color;
+        c.a = alpha;
+        spriteRenderer.color = c;
+    }
 
     // Called by a Predator on catching the player, or by PlayerSurvival on starvation/dehydration.
     public void Die()
     {
+        ParticleManager.Instance?.Play(ParticleManager.ParticleType.Death, transform.position);
         GameManager.Instance?.OnPlayerDeath();
     }
 }

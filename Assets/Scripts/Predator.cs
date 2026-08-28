@@ -61,6 +61,8 @@ public abstract class Predator : Creature
             }
         }
 
+        if (!IsReadyToMove) return;
+
         switch (CurrentState)
         {
             case State.Chase: DoChase(); break;
@@ -192,6 +194,7 @@ public abstract class Predator : Creature
 
     private void Die()
     {
+        ParticleManager.Instance?.Play(ParticleManager.ParticleType.Death, transform.position);
         Destroy(gameObject);
     }
 

@@ -141,4 +141,4 @@ MonoBehaviour:
   restoreAmount: 30
   uses: 0
   regenRate: 0.1
-  waterRegenPerSecond: 8
+  waterRegenPerSecond: 12

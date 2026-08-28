@@ -43,12 +43,17 @@ public class ImposterComponent : MonoBehaviour
     [Tooltip("Small child trigger zone — separate from the hidden predator's own DetectionZone — that fires the reveal when the player gets close enough.")]
     public DetectionZone revealZone;
 
+    [Tooltip("Sprite to show when the predator disguise is revealed.")]
+    public Sprite predatorSprite;
+
     private HarmlessAnimal disguise;
+    private SpriteRenderer spriteRenderer;
     private bool revealed;
 
     private void Awake()
     {
         disguise = GetComponent<HarmlessAnimal>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
 
         // Safety net: guarantee the true identity never runs until reveal, even if
         // someone forgot to untick the checkbox in the Inspector.
@@ -71,6 +76,9 @@ public class ImposterComponent : MonoBehaviour
     private void Reveal()
     {
         revealed = true;
+
+        if (spriteRenderer != null && predatorSprite != null)
+            spriteRenderer.sprite = predatorSprite;
 
         disguise.enabled = false; // stops wander/flee coroutines via HarmlessAnimal.OnDisable
 

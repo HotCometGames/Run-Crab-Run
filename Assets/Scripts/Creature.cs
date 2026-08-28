@@ -25,6 +25,10 @@ public abstract class Creature : MonoBehaviour
     [Tooltip("This creature's own detection radius child object. See DetectionZone.cs.")]
     public DetectionZone detectionZone;
 
+    [Header("Spawn")]
+    [Tooltip("Seconds to wait after spawning before this creature starts moving.")]
+    public float spawnDelay = 1f;
+
     protected Rigidbody2D rb;
     protected Transform player;
     protected PlayerController playerController;
@@ -32,11 +36,13 @@ public abstract class Creature : MonoBehaviour
     protected Vector2 spawnPoint;
     private Vector2 wanderTarget;
     private Coroutine wanderRoutine;
+    private float spawnTimer;
 
     protected virtual void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         spawnPoint = transform.position;
+        spawnTimer = spawnDelay;
 
         var playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
@@ -65,11 +71,23 @@ public abstract class Creature : MonoBehaviour
     protected abstract void HandleDetectionEnter(Collider2D other);
     protected abstract void HandleDetectionExit(Collider2D other);
 
+    protected bool IsReadyToMove => spawnTimer <= 0f;
+
     protected float DistanceToPlayer() =>
         player == null ? Mathf.Infinity : Vector2.Distance(transform.position, player.position);
 
     protected bool PlayerIsHidden() =>
         playerController != null && playerController.IsHidden;
+
+    protected virtual void Update()
+    {
+        if (spawnTimer > 0f)
+        {
+            spawnTimer -= Time.deltaTime;
+            if (spawnTimer <= 0f && wanderRoutine == null)
+                StartWandering();
+        }
+    }
 
     protected void MoveTowards(Vector2 target, float speed)
     {
@@ -102,6 +120,7 @@ public abstract class Creature : MonoBehaviour
 
     protected void StartWandering()
     {
+        if (!IsReadyToMove) return;
         StopWandering();
         wanderRoutine = StartCoroutine(WanderRoutine());
     }

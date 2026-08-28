@@ -14,16 +14,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   creatureName: Wolf
   isPredator: 1
+  difficulty: 0
   moveSpeed: 2
   fleeSpeed: 3
   chaseSpeed: 4.6
   detectionRange: 8
-  attackRange: 2.3
+  attackRange: 1
   attackCooldown: 1
   loseInterestTime: 5
   wanderRadius: 6
-  minWanderPause: 1
-  maxWanderPause: 3
+  minWanderPause: 0.3
+  maxWanderPause: 2
   maxHunger: 100
-  hungerDrainPerSecond: 5
-  hungerOnEat: 40
+  hungerDrainPerSecond: 8
+  hungerOnEat: 30

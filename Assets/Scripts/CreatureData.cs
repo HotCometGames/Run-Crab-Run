@@ -7,12 +7,15 @@ using UnityEngine;
 // UNITY SETUP:
 //   Right-click in Project window -> Create -> RunCrabRun -> Creature Data
 //   Make one asset per creature type (e.g. "Data_Wolf", "Data_Fox", "Data_Deer", "Data_Sheep").
+public enum CreatureDifficulty { Easy, Medium, Hard }
+
 [CreateAssetMenu(fileName = "NewCreatureData", menuName = "RunCrabRun/Creature Data")]
 public class CreatureData : ScriptableObject
 {
     [Header("Identity")]
     public string creatureName = "Creature";
     public bool isPredator = false;
+    public CreatureDifficulty difficulty = CreatureDifficulty.Easy;
 
     [Header("Movement")]
     [Tooltip("Normal wander speed.")]
@@ -44,4 +47,17 @@ public class CreatureData : ScriptableObject
     public float hungerDrainPerSecond = 5f;
     [Tooltip("Hunger restored when the predator eats a prey animal.")]
     public float hungerOnEat = 40f;
+
+    [Header("Friendly Animal Hunger")]
+    [Tooltip("Max hunger for friendly animals. They seek food when low.")]
+    public float friendlyMaxHunger = 100f;
+    [Tooltip("Hunger lost per second for friendly animals. They die at 0.")]
+    public float friendlyHungerDrainPerSecond = 3f;
+    [Tooltip("Hunger restored when a friendly animal eats from a food source.")]
+    public float friendlyHungerOnEat = 40f;
+    [Tooltip("How long it takes a friendly animal to eat (seconds).")]
+    public float eatDuration = 1.3f;
+    [Tooltip("Hunger level (0-1) at which a friendly animal starts seeking food.")]
+    [Range(0f, 1f)]
+    public float hungerSeekThreshold = 0.3f;
 }

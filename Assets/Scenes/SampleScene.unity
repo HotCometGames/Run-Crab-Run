@@ -526,6 +526,54 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &327121563
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 327121565}
+  - component: {fileID: 327121564}
+  m_Layer: 0
+  m_Name: Particle Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &327121564
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 327121563}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf57de38dca6f71498fdd97f20c0b30f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  effects:
+  - type: 0
+    prefab: {fileID: 6432059271448689407, guid: 6434668ae86f3f9419679cafe84f5b62, type: 3}
+    overrideDuration: 0
+--- !u!4 &327121565
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 327121563}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &338387570
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -681,6 +729,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moveSpeed: 3
   sprintMultiplier: 1.9
+  hiddenAlpha: 0.4
 --- !u!212 &350990435
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -846,17 +895,37 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   tiers:
   - startTime: 0
-    spawnInterval: 12
+    spawnInterval: 8
     imposterChance: 0.1
-  - startTime: 120
-    spawnInterval: 9
+    minPredators: 0
+    maxPredators: 1
+    minFriendlies: 1
+    maxFriendlies: 1
+    allowedPredatorDifficulties: 1
+  - startTime: 20
+    spawnInterval: 7
     imposterChance: 0.2
-  - startTime: 300
+    minPredators: 1
+    maxPredators: 2
+    minFriendlies: 2
+    maxFriendlies: 2
+    allowedPredatorDifficulties: 1
+  - startTime: 75
     spawnInterval: 6
     imposterChance: 0.3
-  - startTime: 600
+    minPredators: 2
+    maxPredators: 3
+    minFriendlies: 3
+    maxFriendlies: 4
+    allowedPredatorDifficulties: 3
+  - startTime: 120
     spawnInterval: 4
     imposterChance: 0.4
+    minPredators: 2
+    maxPredators: 4
+    minFriendlies: 3
+    maxFriendlies: 4
+    allowedPredatorDifficulties: -1
 --- !u!114 &470152627
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1247,7 +1316,7 @@ Camera:
   far clip plane: 1000
   field of view: 34
   orthographic: 1
-  orthographic size: 5
+  orthographic size: 7.43
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -2328,6 +2397,8 @@ MonoBehaviour:
   predatorPrefabs:
   - {fileID: 9179179182173551990, guid: bea9ebe6399e0944c841b27bf9cbb730, type: 3}
   - {fileID: 4801651154828921762, guid: f26ab37695dff7845b7f0728189a954f, type: 3}
+  maxTotalCreatures: 50
+  spawnRadius: 1.5
 --- !u!4 &1480761269
 Transform:
   m_ObjectHideFlags: 0
@@ -3202,3 +3273,4 @@ SceneRoots:
   - {fileID: 519196338}
   - {fileID: 286852316}
   - {fileID: 1721128189}
+  - {fileID: 327121565}
