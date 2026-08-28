@@ -20,6 +20,7 @@ public class GameManager : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+        MainMenuController.EnsureExists();
     }
 
     private void Update()
@@ -47,6 +48,7 @@ public class GameManager : MonoBehaviour
     public void Restart()
     {
         Time.timeScale = 1f;
+        MainMenuController.SkipNextMenuOnce();
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 }
