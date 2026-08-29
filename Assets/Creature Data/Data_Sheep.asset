@@ -25,6 +25,14 @@ MonoBehaviour:
   wanderRadius: 6
   minWanderPause: 1
   maxWanderPause: 3
-  maxHunger: 100
-  hungerDrainPerSecond: 5
-  hungerOnEat: 40
+  playerAvoidanceChance: 0.1
+  playerAvoidanceTime: 0.5
+  minFleeTime: 1.5
+  flockTargetChance: 0.55
+  flockSearchRadius: 3.5
+  flockArrivalRadius: 1.25
+  friendlyMaxHunger: 100
+  friendlyHungerDrainPerSecond: 3
+  friendlyHungerOnEat: 40
+  eatDuration: 1.3
+  hungerSeekThreshold: 0.3

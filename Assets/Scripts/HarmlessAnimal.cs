@@ -1,17 +1,11 @@
 using UnityEngine;
 
-// Design doc section 7 + 22: harmless animals (Deer, Sheep) just wander and flee
-// from anything tagged "Predator" — they never attack the player.
-// They also get hungry and must seek out food to stay alive.
-//
-// UNITY SETUP:
-//   - Create a "Deer" and a "Sheep" prefab, each with this script attached
-//     (on top of the standard Creature setup — Rigidbody2D, collider, DetectionZone child).
-//   - Set the GameObject's Tag to "Animal" (create this tag if it doesn't exist).
-//   - Assign a CreatureData asset (e.g. Data_Deer) with isPredator = false.
+// Harmless animals wander, react to nearby creatures, and seek food when hungry.
+// They never attack the player. Real predators and revealed imposters both use the
+// Predator tag, so the same flee path handles either threat.
 public class HarmlessAnimal : Creature
 {
-    public enum State { Wander, Flee, Eat }
+    public enum State { Wander, SeekFood, Flee, Eat }
     public State CurrentState { get; private set; } = State.Wander;
 
     [Header("Food Detection")]
@@ -19,23 +13,40 @@ public class HarmlessAnimal : Creature
     public float foodSearchRadius = 8f;
 
     private Transform fleeingFrom;
+    private float fleeUntil;
     private float fleeWobbleTimer;
     private float fleeWobbleSign;
 
     private float hunger;
     private float eatTimer;
     private ResourceNode targetFood;
+    private Coroutine foodSeekRoutine;
+    private float nextFoodSearchTime;
+
+    private const float FoodSearchRetryDelay = 2f;
 
     private void OnEnable()
     {
         CurrentState = State.Wander;
-        if (data != null) hunger = data.friendlyMaxHunger;
+        fleeingFrom = null;
+        targetFood = null;
+        foodSeekRoutine = null;
+        nextFoodSearchTime = 0f;
+
+        if (data != null)
+            hunger = data.friendlyMaxHunger;
+
         StartWandering();
     }
 
     private void OnDisable()
     {
         StopWandering();
+
+        if (foodSeekRoutine != null)
+            StopCoroutine(foodSeekRoutine);
+
+        foodSeekRoutine = null;
         fleeingFrom = null;
         targetFood = null;
     }
@@ -46,24 +57,30 @@ public class HarmlessAnimal : Creature
 
         if (data == null) return;
 
-        // Drain hunger
         if (CurrentState != State.Eat)
             hunger -= data.friendlyHungerDrainPerSecond * Time.deltaTime;
 
         hunger = Mathf.Clamp(hunger, 0f, data.friendlyMaxHunger);
-
-        // Die from starvation
         if (hunger <= 0f)
         {
             Die();
             return;
         }
 
+        if (!IsReadyToMove) return;
+
         switch (CurrentState)
         {
             case State.Wander:
-                if (hunger <= data.friendlyMaxHunger * data.hungerSeekThreshold)
-                    SeekFood();
+                if (hunger <= data.friendlyMaxHunger * data.hungerSeekThreshold &&
+                    Time.time >= nextFoodSearchTime)
+                {
+                    BeginSeekingFood();
+                }
+                break;
+
+            case State.SeekFood:
+                // MoveToFood owns movement while this state is active.
                 break;
 
             case State.Eat:
@@ -73,17 +90,20 @@ public class HarmlessAnimal : Creature
                 break;
 
             case State.Flee:
-                if (fleeingFrom != null &&
-                    Vector2.Distance(transform.position, fleeingFrom.position) > data.detectionRange * 1.5f)
-                {
+                bool threatMissing = fleeingFrom == null;
+                bool safelyAway = !threatMissing &&
+                    Vector2.Distance(transform.position, fleeingFrom.position) > data.detectionRange * 1.5f;
+
+                if (threatMissing || (safelyAway && Time.time >= fleeUntil))
                     EndFlee();
-                }
                 break;
         }
     }
 
     private void FixedUpdate()
     {
+        if (!IsReadyToMove || data == null) return;
+
         if (CurrentState == State.Flee && fleeingFrom != null)
         {
             Vector2 away = ((Vector2)transform.position - (Vector2)fleeingFrom.position).normalized;
@@ -95,52 +115,71 @@ public class HarmlessAnimal : Creature
                 fleeWobbleTimer = Random.Range(0.15f, 0.4f);
             }
 
-            Vector2 perp = new Vector2(-away.y, away.x) * fleeWobbleSign;
-            Vector2 dir = (away + perp * 0.4f).normalized;
-
-            rb.MovePosition(rb.position + dir * data.fleeSpeed * Time.fixedDeltaTime);
-        }
-        else if (CurrentState == State.Eat)
-        {
-            // Stay still while eating
+            Vector2 perpendicular = new Vector2(-away.y, away.x) * fleeWobbleSign;
+            Vector2 direction = (away + perpendicular * 0.4f).normalized;
+            MoveInDirection(direction, data.fleeSpeed);
         }
     }
 
     protected override void HandleDetectionEnter(Collider2D other)
     {
+        if (data == null) return;
+
         if (other.CompareTag("Predator"))
         {
-            if (CurrentState == State.Eat)
-                CancelEat();
-            StartFlee(other.transform);
+            StartFlee(other.transform, data.minFleeTime);
+        }
+        else if (other.CompareTag("Player") && Random.value < data.playerAvoidanceChance)
+        {
+            // Keep this subtle and probabilistic so it cannot identify an imposter.
+            StartFlee(other.transform, data.playerAvoidanceTime);
         }
     }
 
-    protected override void HandleDetectionExit(Collider2D other) { /* handled by distance check in Update */ }
+    protected override void HandleDetectionExit(Collider2D other)
+    {
+        // Distance and the minimum flee duration are evaluated in Update.
+    }
 
-    private void SeekFood()
+    private void BeginSeekingFood()
     {
         ResourceNode nearest = FindNearestFood();
-        if (nearest == null) return;
+        if (nearest == null)
+        {
+            nextFoodSearchTime = Time.time + FoodSearchRetryDelay;
+            return;
+        }
 
         targetFood = nearest;
+        CurrentState = State.SeekFood;
         StopWandering();
-        CurrentState = State.Wander; // stay in Wander but we'll move toward food in a coroutine
-        StartCoroutine(MoveToFood());
+        foodSeekRoutine = StartCoroutine(MoveToFood());
     }
 
     private System.Collections.IEnumerator MoveToFood()
     {
-        while (targetFood != null && CurrentState == State.Wander)
+        while (targetFood != null && CurrentState == State.SeekFood)
         {
-            float dist = Vector2.Distance(rb.position, targetFood.transform.position);
-            if (dist < 0.5f)
+            float distance = Vector2.Distance(rb.position, targetFood.transform.position);
+            if (distance < 0.5f)
             {
+                foodSeekRoutine = null;
                 StartEating();
                 yield break;
             }
+
             MoveTowards(targetFood.transform.position, data.moveSpeed);
             yield return new WaitForFixedUpdate();
+        }
+
+        foodSeekRoutine = null;
+        targetFood = null;
+
+        if (CurrentState == State.SeekFood)
+        {
+            CurrentState = State.Wander;
+            nextFoodSearchTime = Time.time + FoodSearchRetryDelay;
+            StartWandering();
         }
     }
 
@@ -148,21 +187,21 @@ public class HarmlessAnimal : Creature
     {
         Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, foodSearchRadius);
         ResourceNode nearest = null;
-        float nearestDist = Mathf.Infinity;
+        float nearestDistance = Mathf.Infinity;
 
-        foreach (var hit in hits)
+        foreach (Collider2D hit in hits)
         {
-            var node = hit.GetComponent<ResourceNode>();
-            if (node != null && node.type == ResourceNode.ResourceType.Food)
+            ResourceNode node = hit.GetComponent<ResourceNode>();
+            if (node == null || node.type != ResourceNode.ResourceType.Food) continue;
+
+            float distance = Vector2.Distance(transform.position, node.transform.position);
+            if (distance < nearestDistance)
             {
-                float dist = Vector2.Distance(transform.position, node.transform.position);
-                if (dist < nearestDist)
-                {
-                    nearestDist = dist;
-                    nearest = node;
-                }
+                nearestDistance = distance;
+                nearest = node;
             }
         }
+
         return nearest;
     }
 
@@ -170,7 +209,6 @@ public class HarmlessAnimal : Creature
     {
         CurrentState = State.Eat;
         eatTimer = data.eatDuration;
-        StopAllCoroutines();
     }
 
     private void FinishEating()
@@ -181,17 +219,25 @@ public class HarmlessAnimal : Creature
         StartWandering();
     }
 
-    private void CancelEat()
+    private void CancelFoodActivity()
     {
+        if (foodSeekRoutine != null)
+            StopCoroutine(foodSeekRoutine);
+
+        foodSeekRoutine = null;
         targetFood = null;
         eatTimer = 0f;
     }
 
-    private void StartFlee(Transform threat)
+    private void StartFlee(Transform threat, float minimumDuration)
     {
+        if (threat == null) return;
+
+        CancelFoodActivity();
         fleeingFrom = threat;
+        fleeUntil = Time.time + Mathf.Max(0f, minimumDuration);
         CurrentState = State.Flee;
-        StopAllCoroutines();
+        StopWandering();
         fleeWobbleTimer = 0f;
         fleeWobbleSign = Random.value < 0.5f ? -1f : 1f;
     }
@@ -199,6 +245,7 @@ public class HarmlessAnimal : Creature
     private void EndFlee()
     {
         fleeingFrom = null;
+        fleeUntil = 0f;
         CurrentState = State.Wander;
         StartWandering();
     }
@@ -209,5 +256,25 @@ public class HarmlessAnimal : Creature
         Destroy(gameObject);
     }
 
-    protected override bool ShouldInterruptWander() => CurrentState == State.Flee;
+    protected override bool ShouldInterruptWander() => CurrentState != State.Wander;
+
+    protected override Vector2 ChooseWanderTarget()
+    {
+        // Light, probabilistic grouping adds life without making ordinary movement
+        // into a reliable tell for the hidden-predator mechanic.
+        if (data != null && Random.value < data.flockTargetChance && data.flockSearchRadius > 0f)
+        {
+            Collider2D[] nearby = Physics2D.OverlapCircleAll(transform.position, data.flockSearchRadius);
+            foreach (Collider2D candidate in nearby)
+            {
+                if (candidate.gameObject != gameObject && candidate.CompareTag("Animal"))
+                {
+                    Vector2 offset = Random.insideUnitCircle * data.flockArrivalRadius;
+                    return (Vector2)candidate.transform.position + offset;
+                }
+            }
+        }
+
+        return base.ChooseWanderTarget();
+    }
 }

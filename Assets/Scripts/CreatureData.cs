@@ -28,9 +28,9 @@ public class CreatureData : ScriptableObject
     [Header("Detection")]
     [Tooltip("Radius at which this creature reacts to the player or to predators (should roughly match the DetectionZone collider radius).")]
     public float detectionRange = 5f;
-    [Tooltip("Distance at which a predator's Attack() fires (one-hit kill per design doc section 16).")]
+    [Tooltip("Distance at which a predator's Attack() fires. Keep this close to the body collider so a hit looks fair.")]
     public float attackRange = 0.6f;
-    [Tooltip("Cooldown time between a predator's Attack() calls (one-hit kill per design doc section 16).")]
+    [Tooltip("Time before the predator can damage the player again.")]
     public float attackCooldown = 0.6f;
     [Tooltip("How long a predator keeps searching after losing the player before giving up.")]
     public float loseInterestTime = 3f;
@@ -39,6 +39,18 @@ public class CreatureData : ScriptableObject
     public float wanderRadius = 6f;
     public float minWanderPause = 1f;
     public float maxWanderPause = 3f;
+
+    [Header("Harmless Animal Behaviour")]
+    [Tooltip("Chance that this animal briefly moves away when the player enters its detection zone. Keep this low so it is never an imposter tell.")]
+    [Range(0f, 1f)] public float playerAvoidanceChance = 0f;
+    [Tooltip("How long a player-shy animal keeps fleeing before it may settle down.")]
+    public float playerAvoidanceTime = 0.5f;
+    [Tooltip("Minimum time spent fleeing a real predator or revealed imposter.")]
+    public float minFleeTime = 1.5f;
+    [Tooltip("Chance to choose a nearby harmless animal as the next wander destination.")]
+    [Range(0f, 1f)] public float flockTargetChance = 0f;
+    public float flockSearchRadius = 3f;
+    public float flockArrivalRadius = 1.25f;
 
     [Header("Predator Hunger (invisible)")]
     [Tooltip("Max hunger for predators. Drains over time; predator dies at 0.")]

@@ -23,3 +23,9 @@ MonoBehaviour:
   wanderRadius: 6
   minWanderPause: 1
   maxWanderPause: 3
+  playerAvoidanceChance: 0.3
+  playerAvoidanceTime: 0.5
+  minFleeTime: 1.5
+  flockTargetChance: 0.2
+  flockSearchRadius: 3
+  flockArrivalRadius: 1.25
