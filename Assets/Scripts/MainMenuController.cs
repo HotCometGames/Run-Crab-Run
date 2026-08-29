@@ -164,7 +164,7 @@ public class MainMenuController : MonoBehaviour
 
         Transform survival = CreateSection(content, "Survival Section", "SURVIVAL");
         AddParagraph(survival, "Find berries to restore hunger.");
-        AddParagraph(survival, "Stand in wells to restore thirst.");
+        AddParagraph(survival, "Stand in the stream or at wells to restore thirst.");
         AddParagraph(survival, "Hide in bushes to escape ground predators.");
 
         Transform danger = CreateSection(content, "Danger Section", "DANGER");

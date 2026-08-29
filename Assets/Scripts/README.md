@@ -126,7 +126,7 @@ prefab you want the crab to be able to hide in.
 `Collider2D`. Suggested values:
 - Berry Bush: Type=Food, Restore=30, Uses=3
 - Fruit: Type=Food, Restore=15, Uses=1
-- Stream: Type=Water, Restore=40, Uses=0 (infinite)
+- Stream: Type=Water, Restore=0, Uses=0, Water Regen Per Second=5 (infinite)
 
 Lay these out in resource hotspots per doc section 21 (a few clusters of food/water,
 not evenly scattered).
