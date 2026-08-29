@@ -49,4 +49,12 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
+
+    // Used by the death screen's Main Menu button. Keeping navigation here prevents
+    // the gameplay scene from needing any knowledge of menu UI implementation.
+    public void ReturnToMainMenu()
+    {
+        Time.timeScale = 1f;
+        SceneManager.LoadScene("MainMenu");
+    }
 }
