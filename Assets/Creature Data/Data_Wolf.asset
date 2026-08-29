@@ -39,6 +39,9 @@ MonoBehaviour:
   wanderRadius: 6
   minWanderPause: 0.3
   maxWanderPause: 2
+  huntsPrey: 1
+  preyPursuitRangeMultiplier: 1.75
+  preyHuntCooldown: 2
   maxHunger: 100
   hungerDrainPerSecond: 0
   hungerOnEat: 30

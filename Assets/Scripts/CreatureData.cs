@@ -84,10 +84,18 @@ public class CreatureData : ScriptableObject
     public float flockSearchRadius = 3f;
     public float flockArrivalRadius = 1.25f;
 
+    [Header("Predator Prey Hunting")]
+    [Tooltip("Whether this predator opportunistically hunts harmless animals while it is not pursuing the player.")]
+    public bool huntsPrey = false;
+    [Tooltip("Maximum prey-pursuit distance as a multiple of detection range.")]
+    [Min(1f)] public float preyPursuitRangeMultiplier = 1.5f;
+    [Tooltip("Rest time after a successful hunt before this predator selects another prey animal.")]
+    [Min(0f)] public float preyHuntCooldown = 1.5f;
+
     [Header("Predator Hunger (invisible)")]
-    [Tooltip("Max hunger for predators. Drains over time; predator dies at 0.")]
+    [Tooltip("Max hunger for predators. Only drains when Hunger Drain Per Second is above zero.")]
     public float maxHunger = 100f;
-    [Tooltip("Hunger lost per second. Predator dies when it hits 0.")]
+    [Tooltip("Optional hunger lost per second. Zero disables starvation without disabling prey hunting.")]
     public float hungerDrainPerSecond = 5f;
     [Tooltip("Hunger restored when the predator eats a prey animal.")]
     public float hungerOnEat = 40f;

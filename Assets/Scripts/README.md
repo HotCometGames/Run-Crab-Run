@@ -61,6 +61,10 @@ Make one per creature type and tune values to match the doc's examples:
 (`fleeSpeed`, `wanderRadius`, `minWanderPause`/`maxWanderPause` are used by every
 creature type — tune to taste, defaults are reasonable.)
 
+Wolf and Fox data assets enable `huntsPrey`. This is independent from predator
+hunger: `hungerDrainPerSecond = 0` keeps predators from starving during a short run
+without preventing them from hunting Deer, Sheep, or an unrevealed Imposter.
+
 `CreatureMotor2D` is added automatically at runtime. Its acceleration, braking,
 turning, arrival, wall-avoidance, separation, and movement-character values come from
 the assigned `CreatureData`. Set `spriteFacesRightByDefault` to match the source art;
@@ -96,6 +100,10 @@ Same steps as above, but:
 - You do **not** need to set the Tag by hand — `Predator.OnEnable()` sets it to
   `Predator` automatically at runtime.
 - Assign `Data_Wolf` / `Data_Fox`.
+
+While idle, a predator selects the nearest harmless animal in range. A visible player
+always takes priority; after losing the player, the predator finishes searching before
+returning to prey hunting.
 
 ## 6. Building an Imposter (the core mechanic, doc section 8)
 
@@ -176,6 +184,9 @@ trees) so the player physically cannot walk off the map — no invisible walls n
 - [ ] Standing in a bush turns off predator chase (walk a Wolf toward you, then hide)
 - [ ] Wolf: wanders → notices player → chases → gives up if you hide/outrun it
 - [ ] Fox: same as Wolf but faster and breaks off chase sooner
+- [ ] Wolf/Fox: selects the nearest Deer/Sheep, triggers a natural flee-and-pursuit,
+      catches it once, then pauses before hunting again; a visible player interrupts
+      the hunt immediately
 - [ ] Deer/Sheep: wander, flee when a real Wolf/Fox/revealed-Imposter gets close
 - [ ] Imposter sheep: behaves exactly like a normal sheep until you get close, then
       reveals and chases — and other nearby sheep correctly flee it once revealed
@@ -184,7 +195,7 @@ trees) so the player physically cannot walk off the map — no invisible walls n
 - [ ] SpawnManager produces more predators/imposters as SurvivalTime climbs through
       the DifficultyManager tiers
 
-Once all of these pass, you have the full MVP — everything in doc section 27
-(group behavior, predator-hunts-deer, animal panic, imposter groups, resource
-depletion, weather) is a stretch goal layered on top of this foundation, not a
-rewrite of it.
+Once all of these pass, you have the polished game loop. Remaining doc-section-27
+ideas such as advanced group behavior, large animal panic chains, imposter groups,
+resource depletion, and weather remain stretch goals layered on top of this
+foundation, not a rewrite of it.

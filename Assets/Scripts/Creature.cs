@@ -121,13 +121,22 @@ public abstract class Creature : MonoBehaviour
         float speed,
         CreatureMovementStyle style = CreatureMovementStyle.Wander,
         float stopRadius = 0.15f,
-        float slowRadius = -1f)
+        float slowRadius = -1f,
+        Transform separationIgnore = null)
     {
         if (motor == null || data == null) return;
         float resolvedSlowRadius = slowRadius > stopRadius
             ? slowRadius
             : Mathf.Max(stopRadius + 0.1f, data.arrivalSlowRadius);
-        motor.DriveTo(this, data, target, speed, style, stopRadius, resolvedSlowRadius);
+        motor.DriveTo(
+            this,
+            data,
+            target,
+            speed,
+            style,
+            stopRadius,
+            resolvedSlowRadius,
+            separationIgnore);
     }
 
     protected void MoveInDirection(

@@ -32,6 +32,7 @@ public sealed class CreatureMotor2D : MonoBehaviour
     private float stopRadius;
     private float slowRadius;
     private bool hasTarget;
+    private Transform separationIgnore;
 
     private Vector2 lastHeading = Vector2.right;
     private float wanderNoiseOffset;
@@ -59,6 +60,7 @@ public sealed class CreatureMotor2D : MonoBehaviour
     {
         ActiveMotors.Remove(this);
         intentOwner = null;
+        separationIgnore = null;
         if (body != null) body.linearVelocity = Vector2.zero;
     }
 
@@ -71,7 +73,8 @@ public sealed class CreatureMotor2D : MonoBehaviour
         float speed,
         CreatureMovementStyle style,
         float arrivalStopRadius,
-        float arrivalSlowRadius)
+        float arrivalSlowRadius,
+        Transform ignoreForSeparation = null)
     {
         if (owner == null || data == null) return;
 
@@ -82,6 +85,7 @@ public sealed class CreatureMotor2D : MonoBehaviour
         requestedSpeed = Mathf.Max(0f, speed);
         stopRadius = Mathf.Max(0f, arrivalStopRadius);
         slowRadius = Mathf.Max(stopRadius + 0.01f, arrivalSlowRadius);
+        separationIgnore = ignoreForSeparation;
         hasTarget = true;
     }
 
@@ -99,6 +103,7 @@ public sealed class CreatureMotor2D : MonoBehaviour
         movementStyle = style;
         requestedDirection = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector2.zero;
         requestedSpeed = Mathf.Max(0f, speed);
+        separationIgnore = null;
         hasTarget = false;
     }
 
@@ -113,6 +118,7 @@ public sealed class CreatureMotor2D : MonoBehaviour
         movementStyle = style;
         requestedDirection = Vector2.zero;
         requestedSpeed = 0f;
+        separationIgnore = null;
         hasTarget = false;
     }
 
@@ -123,6 +129,7 @@ public sealed class CreatureMotor2D : MonoBehaviour
         if (intentOwner != owner) return;
         intentOwner = null;
         requestedSpeed = 0f;
+        separationIgnore = null;
         hasTarget = false;
     }
 
@@ -242,6 +249,8 @@ public sealed class CreatureMotor2D : MonoBehaviour
         foreach (CreatureMotor2D other in ActiveMotors)
         {
             if (other == null || other == this || other.body == null || !other.gameObject.activeInHierarchy)
+                continue;
+            if (separationIgnore != null && other.transform == separationIgnore)
                 continue;
 
             Vector2 offset = body.position - other.body.position;

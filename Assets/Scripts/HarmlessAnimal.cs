@@ -8,6 +8,7 @@ public class HarmlessAnimal : Creature
 {
     public enum State { Wander, SeekFood, Flee, Eat }
     public State CurrentState { get; private set; } = State.Wander;
+    public bool IsAlive { get; private set; } = true;
 
     [Header("Food Detection")]
     [Tooltip("How far to scan for food nodes.")]
@@ -29,6 +30,7 @@ public class HarmlessAnimal : Creature
 
     private void OnEnable()
     {
+        IsAlive = true;
         CurrentState = State.Wander;
         fleeingFrom = null;
         playerAvoidanceTarget = null;
@@ -63,7 +65,7 @@ public class HarmlessAnimal : Creature
     {
         base.Update();
 
-        if (data == null) return;
+        if (!IsAlive || data == null) return;
 
         if (CurrentState != State.Eat)
             hunger -= data.friendlyHungerDrainPerSecond * Time.deltaTime;
@@ -71,7 +73,7 @@ public class HarmlessAnimal : Creature
         hunger = Mathf.Clamp(hunger, 0f, data.friendlyMaxHunger);
         if (hunger <= 0f)
         {
-            Die();
+            TryDie();
             return;
         }
 
@@ -304,11 +306,21 @@ public class HarmlessAnimal : Creature
         return nearestPredator != null ? nearestPredator : playerAvoidanceTarget;
     }
 
-    public void Die()
+    // Destroy is deferred until the end of the frame. Marking and disabling the
+    // animal immediately makes a simultaneous second predator's kill attempt fail,
+    // so death feedback and hunger credit can only happen once.
+    public bool TryDie()
     {
+        if (!IsAlive) return false;
+
+        IsAlive = false;
+        enabled = false;
         ParticleManager.Instance?.Play(ParticleManager.ParticleType.Death, transform.position);
         Destroy(gameObject);
+        return true;
     }
+
+    public void Die() => TryDie();
 
     protected override bool ShouldInterruptWander() => CurrentState != State.Wander;
 
