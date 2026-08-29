@@ -12,6 +12,9 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerController : MonoBehaviour
 {
+
+    [SerializeField] private AudioClip CrabWalk;
+
     [Header("Movement")]
     public float moveSpeed = 3f;
     public float sprintMultiplier = 1.8f;
@@ -47,6 +50,7 @@ public class PlayerController : MonoBehaviour
     {
         float speed = moveSpeed * (IsSprinting ? sprintMultiplier : 1f);
         rb.MovePosition(rb.position + moveInput * speed * Time.fixedDeltaTime);
+        SoundManager.instance.PlaySound(CrabWalk, transform, 1f);
     }
 
     // Called by HidingSpot.cs when the crab enters/exits a bush trigger.
