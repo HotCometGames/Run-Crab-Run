@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c53842a504bd04bfc9c5131d7147fca5, type: 3}
+  m_Name: FoxAnimationSet
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterAnimationSet
+  idleFrame: {fileID: 21300000, guid: bc1aecb7ffb8ce44a9983d57dc9ecb5f, type: 3}
+  walkFrames:
+  - {fileID: 21300000, guid: 6a499a432ae787048880e5b885bb766d, type: 3}
+  - {fileID: 21300000, guid: 163c60b987c19764ca31bf2a8ce4e0a0, type: 3}
+  chaseFrames:
+  - {fileID: 21300000, guid: 46772ae596d429d44a0d6466e822570c, type: 3}
+  - {fileID: 21300000, guid: acc61f168e10a5b499a6de5915730ce4, type: 3}
+  sprintFrames: []
+  walkFramesPerSecond: 4
+  chaseFramesPerSecond: 5.5
+  sprintFramesPerSecond: 5.5

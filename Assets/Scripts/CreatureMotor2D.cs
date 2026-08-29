@@ -21,6 +21,7 @@ public sealed class CreatureMotor2D : MonoBehaviour
     private Rigidbody2D body;
     private Collider2D bodyCollider;
     private SpriteRenderer spriteRenderer;
+    private CharacterAnimation2D characterAnimation;
     private ContactFilter2D obstacleFilter;
 
     private Creature intentOwner;
@@ -42,7 +43,8 @@ public sealed class CreatureMotor2D : MonoBehaviour
     {
         body = GetComponent<Rigidbody2D>();
         bodyCollider = GetComponent<Collider2D>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>(true);
+        characterAnimation = GetComponent<CharacterAnimation2D>();
         wanderNoiseOffset = Random.Range(0f, 1000f);
         avoidanceSide = Random.value < 0.5f ? -1f : 1f;
 
@@ -336,6 +338,9 @@ public sealed class CreatureMotor2D : MonoBehaviour
 
     private void UpdateFacing(Vector2 velocity)
     {
+        if (characterAnimation != null && characterAnimation.ControlsVisualFacing)
+            return;
+
         if (spriteRenderer == null || settings == null || Mathf.Abs(velocity.x) < settings.spriteFlipThreshold)
             return;
 

@@ -5,7 +5,8 @@ using UnityEngine;
 //
 // UNITY SETUP:
 //   - Create a "Player" GameObject, Tag = "Player".
-//   - Add Rigidbody2D (Gravity Scale 0, Freeze Rotation Z), a Collider2D, a SpriteRenderer.
+//   - Add Rigidbody2D (Gravity Scale 0, Freeze Rotation Z), a Collider2D, and a
+//     SpriteRenderer on this object or its visual child.
 //   - Add this script, PlayerSurvival.cs, and (optionally) an Animator.
 //   - Input: this uses the default "Horizontal"/"Vertical" axes that ship with every
 //     new Unity project (WASD + arrow keys), so no Input Manager changes are required.
@@ -42,7 +43,7 @@ public class PlayerController : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>(true);
         if (spriteRenderer != null) normalSpriteColor = spriteRenderer.color;
         ConfigureMovementAudio();
     }

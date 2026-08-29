@@ -17,17 +17,22 @@ public class ImposterComponent : MonoBehaviour
     [Tooltip("Sprite to show when the disguise is revealed.")]
     public Sprite predatorSprite;
 
+    [Tooltip("Animation set to use after the disguise reveals its hidden predator.")]
+    public CharacterAnimationSet predatorAnimationSet;
+
     [Tooltip("Optional reveal audio, particles, animation, or camera feedback.")]
     public UnityEvent onRevealed;
 
     private HarmlessAnimal disguise;
     private SpriteRenderer spriteRenderer;
+    private CharacterAnimation2D characterAnimation;
     private bool revealed;
 
     private void Awake()
     {
         disguise = GetComponent<HarmlessAnimal>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>(true);
+        characterAnimation = GetComponent<CharacterAnimation2D>();
 
         // Safety net for prefab setup mistakes. OnEnable starts Predator behaviour,
         // so the hidden component must remain dormant until Reveal.
@@ -65,6 +70,8 @@ public class ImposterComponent : MonoBehaviour
 
         if (spriteRenderer != null && predatorSprite != null)
             spriteRenderer.sprite = predatorSprite;
+
+        characterAnimation?.SetAnimationSet(predatorAnimationSet);
 
         ParticleManager.Instance?.Play(ParticleManager.ParticleType.SpawnPoof, transform.position);
 

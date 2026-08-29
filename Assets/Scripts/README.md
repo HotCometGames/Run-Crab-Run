@@ -44,6 +44,21 @@ Movement uses `Input.GetAxisRaw("Horizontal"/"Vertical")`, which exists by defau
 every new Unity project (WASD + arrow keys) — no Input Manager changes needed. Sprint
 is hardcoded to Left Shift in `PlayerController`.
 
+### Final character art and animation
+
+The playable scene and creature prefabs use the artist's final, full-canvas PNG
+frames through `CharacterAnimation2D`; they do not require Animator Controllers.
+Idle, walk, predator chase, and crab sprint frames are selected from reusable
+`CharacterAnimationSet` assets based on real movement and AI state. Because the
+delivered art faces screen-down, only each character's `Visual` child turns toward
+travel while its Rigidbody, collider, and detection zones remain stable.
+
+To reapply revised files at the existing art paths, run **Tools ▸ Run Crab Run ▸
+Apply Artist Animations**. The command normalizes import settings, rebuilds the five
+animation sets, rewires the Player and creature prefabs, and connects the Imposter's
+sheep-to-wolf profile swap. The four `crab * draft.png` files are intentionally not
+referenced by the game.
+
 ---
 
 ## 2. CreatureData assets (data-driven stats, doc section 29)
@@ -67,9 +82,9 @@ without preventing them from hunting Deer, Sheep, or an unrevealed Imposter.
 
 `CreatureMotor2D` is added automatically at runtime. Its acceleration, braking,
 turning, arrival, wall-avoidance, separation, and movement-character values come from
-the assigned `CreatureData`. Set `spriteFacesRightByDefault` to match the source art;
-the motor only handles a stable horizontal flip, so an Animator can be added later
-without changing any AI behaviour.
+the assigned `CreatureData`. `spriteFacesRightByDefault` remains the fallback for a
+prefab without `CharacterAnimation2D`; the final artist-backed characters instead
+rotate their visual child smoothly toward actual Rigidbody movement.
 
 ---
 
