@@ -56,5 +56,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "Run Crab Run.sln"
+    "dotnet.defaultSolution": "Run-Crab-Run.slnx"
 }
