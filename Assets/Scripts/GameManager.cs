@@ -20,6 +20,12 @@ public class GameManager : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+        Time.timeScale = 1f;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 
     private void Update()
@@ -37,6 +43,7 @@ public class GameManager : MonoBehaviour
         {
             best = SurvivalTime;
             PlayerPrefs.SetFloat(HighScoreKey, best);
+            PlayerPrefs.Save();
         }
 
         UIManager.Instance?.ShowDeathScreen(SurvivalTime, best);

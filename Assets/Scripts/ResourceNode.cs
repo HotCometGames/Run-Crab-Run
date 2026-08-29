@@ -32,16 +32,26 @@ public class ResourceNode : MonoBehaviour
     [Tooltip("Thirst restored per second while the player stands in this water source.")]
     public float waterRegenPerSecond = 5f;
 
+    [Header("Feedback")]
+    [SerializeField] private Color depletedTint = new Color(0.45f, 0.45f, 0.45f, 0.65f);
+    [SerializeField] private AudioClip interactionSound;
+
     private int usesLeft;
     private int maxUses;
     private float regenAccumulator;
     private bool playerInWater;
     private Collider2D playerCollider;
+    private PlayerSurvival playerSurvival;
+    private SpriteRenderer spriteRenderer;
+    private Color availableTint = Color.white;
 
     private void Awake()
     {
         maxUses = uses;
         usesLeft = uses;
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        if (spriteRenderer != null) availableTint = spriteRenderer.color;
+        UpdateVisualState();
     }
 
     private void Update()
@@ -51,19 +61,25 @@ public class ResourceNode : MonoBehaviour
             regenAccumulator += regenRate * Time.deltaTime;
             if (regenAccumulator >= 1f)
             {
+                int previousUses = usesLeft;
                 int toRestore = Mathf.FloorToInt(regenAccumulator);
                 usesLeft = Mathf.Min(usesLeft + toRestore, maxUses);
                 regenAccumulator -= toRestore;
+                if (usesLeft != previousUses) UpdateVisualState();
             }
         }
 
-        if (type == ResourceType.Water && playerInWater && playerCollider != null)
+        if (type == ResourceType.Water && playerInWater)
         {
-            var survival = playerCollider.GetComponent<PlayerSurvival>();
-            if (survival != null)
+            if (playerCollider == null || playerSurvival == null)
             {
-                survival.ConsumeWater(waterRegenPerSecond * Time.deltaTime);
+                playerInWater = false;
+                playerCollider = null;
+                playerSurvival = null;
+                return;
             }
+
+            playerSurvival.ConsumeWater(waterRegenPerSecond * Time.deltaTime);
         }
     }
 
@@ -75,17 +91,32 @@ public class ResourceNode : MonoBehaviour
         {
             if (uses > 0 && usesLeft <= 0) return;
 
-            var survival = other.GetComponent<PlayerSurvival>();
+            PlayerSurvival survival = other.GetComponent<PlayerSurvival>();
             if (survival == null) return;
 
-            survival.ConsumeFood(restoreAmount);
+            if (!survival.ConsumeFood(restoreAmount)) return;
 
-            if (uses > 0) usesLeft--;
+            if (uses > 0)
+            {
+                usesLeft--;
+                UpdateVisualState();
+            }
+
+            ParticleManager.Instance?.Play(ParticleManager.ParticleType.Eat, transform.position);
+            if (interactionSound != null)
+                SoundManager.Instance?.PlaySound(interactionSound, transform, 0.65f);
         }
         else if (type == ResourceType.Water)
         {
             playerInWater = true;
             playerCollider = other;
+            playerSurvival = other.GetComponent<PlayerSurvival>();
+            if (playerSurvival != null && playerSurvival.thirst < playerSurvival.maxThirst)
+            {
+                ParticleManager.Instance?.Play(ParticleManager.ParticleType.WaterSplash, other.transform.position);
+                if (interactionSound != null)
+                    SoundManager.Instance?.PlaySound(interactionSound, other.transform, 0.6f);
+            }
         }
     }
 
@@ -97,6 +128,13 @@ public class ResourceNode : MonoBehaviour
         {
             playerInWater = false;
             playerCollider = null;
+            playerSurvival = null;
         }
+    }
+
+    private void UpdateVisualState()
+    {
+        if (spriteRenderer == null || type != ResourceType.Food || maxUses <= 0) return;
+        spriteRenderer.color = usesLeft > 0 ? availableTint : depletedTint;
     }
 }

@@ -14,11 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   creatureName: Deer
   isPredator: 0
+  difficulty: 0
   moveSpeed: 2.5
   fleeSpeed: 4
   chaseSpeed: 4.5
   detectionRange: 5
   attackRange: 0.6
+  attackCooldown: 0.6
   loseInterestTime: 3
   wanderRadius: 6
   minWanderPause: 1
@@ -26,6 +28,11 @@ MonoBehaviour:
   playerAvoidanceChance: 0.3
   playerAvoidanceTime: 0.5
   minFleeTime: 1.5
-  flockTargetChance: 0.2
+  flockTargetChance: 0
   flockSearchRadius: 3
   flockArrivalRadius: 1.25
+  friendlyMaxHunger: 100
+  friendlyHungerDrainPerSecond: 0
+  friendlyHungerOnEat: 40
+  eatDuration: 1.3
+  hungerSeekThreshold: 0.3

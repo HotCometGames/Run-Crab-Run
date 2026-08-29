@@ -142,3 +142,5 @@ MonoBehaviour:
   uses: 0
   regenRate: 0.1
   waterRegenPerSecond: 12
+  depletedTint: {r: 0.45, g: 0.45, b: 0.45, a: 0.65}
+  interactionSound: {fileID: 8300000, guid: cc084d9a73ce5f2409892efd3cc36288, type: 3}

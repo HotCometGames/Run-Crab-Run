@@ -50,18 +50,33 @@ public class DifficultyManager : MonoBehaviour
 
     public Tier CurrentTier { get; private set; }
 
+    private void Awake()
+    {
+        RefreshTier();
+    }
+
     private void Update()
     {
-        if (GameManager.Instance == null || tiers.Length == 0) return;
-        float t = GameManager.Instance.SurvivalTime;
+        RefreshTier();
+    }
 
-        for (int i = tiers.Length - 1; i >= 0; i--)
+    private void RefreshTier()
+    {
+        if (tiers == null || tiers.Length == 0) return;
+
+        float t = GameManager.Instance != null ? GameManager.Instance.SurvivalTime : 0f;
+        Tier selected = tiers[0];
+        float selectedStart = float.NegativeInfinity;
+
+        for (int i = 0; i < tiers.Length; i++)
         {
-            if (t >= tiers[i].startTime)
+            if (t >= tiers[i].startTime && tiers[i].startTime >= selectedStart)
             {
-                CurrentTier = tiers[i];
-                break;
+                selected = tiers[i];
+                selectedStart = tiers[i].startTime;
             }
         }
+
+        CurrentTier = selected;
     }
 }

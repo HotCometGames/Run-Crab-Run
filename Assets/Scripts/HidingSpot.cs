@@ -10,11 +10,19 @@ using UnityEngine;
 //   that walks into it (make sure the Player GameObject is Tag = "Player").
 public class HidingSpot : MonoBehaviour
 {
+    [SerializeField] private AudioClip hideSound;
+
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (other.CompareTag("Player"))
         {
-            other.GetComponent<PlayerController>()?.EnterHiding();
+            PlayerController controller = other.GetComponent<PlayerController>();
+            if (controller == null) return;
+
+            bool wasHidden = controller.IsHidden;
+            controller.EnterHiding();
+            if (!wasHidden && hideSound != null)
+                SoundManager.Instance?.PlaySound(hideSound, other.transform, 0.55f);
         }
     }
 

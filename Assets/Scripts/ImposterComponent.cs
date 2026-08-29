@@ -52,9 +52,9 @@ public class ImposterComponent : MonoBehaviour
 
     private void Reveal()
     {
-        if (hiddenPredator == null)
+        if (hiddenPredator == null || hiddenPredator.data == null)
         {
-            Debug.LogError($"{name}: Imposter cannot reveal without a hidden Predator reference.", this);
+            Debug.LogError($"{name}: Imposter cannot reveal without a configured hidden Predator.", this);
             return;
         }
 
@@ -66,6 +66,8 @@ public class ImposterComponent : MonoBehaviour
         if (spriteRenderer != null && predatorSprite != null)
             spriteRenderer.sprite = predatorSprite;
 
+        ParticleManager.Instance?.Play(ParticleManager.ParticleType.SpawnPoof, transform.position);
+
         disguise.enabled = false;
 
         if (hiddenPredator.detectionZone != null)
@@ -73,8 +75,22 @@ public class ImposterComponent : MonoBehaviour
 
         hiddenPredator.enabled = true;
         hiddenPredator.ForceBeginChase();
+        NotifyNearbyAnimals();
 
         if (revealZone != null)
             revealZone.gameObject.SetActive(false);
+    }
+
+    private void NotifyNearbyAnimals()
+    {
+        HarmlessAnimal[] animals = FindObjectsByType<HarmlessAnimal>();
+        foreach (HarmlessAnimal animal in animals)
+        {
+            if (animal == disguise || !animal.enabled || animal.data == null) continue;
+
+            float distance = Vector2.Distance(transform.position, animal.transform.position);
+            if (distance <= animal.data.detectionRange)
+                animal.ReactToThreat(transform);
+        }
     }
 }

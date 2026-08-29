@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 // UNITY SETUP:
@@ -35,31 +36,48 @@ public class UIManager : MonoBehaviour
 
     private void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         Instance = this;
         if (deathScreenPanel != null) deathScreenPanel.SetActive(false);
         CreateMainMenuButton();
     }
 
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+    }
+
     private void Update()
     {
         if (playerSurvival == null) return;
-        if (hungerBar != null) hungerBar.value = playerSurvival.hunger / playerSurvival.maxHunger;
-        if (thirstBar != null) thirstBar.value = playerSurvival.thirst / playerSurvival.maxThirst;
-        if (healthBar != null) healthBar.value = playerSurvival.health / playerSurvival.maxHealth;
+        if (hungerBar != null) hungerBar.value = Normalized(playerSurvival.hunger, playerSurvival.maxHunger);
+        if (thirstBar != null) thirstBar.value = Normalized(playerSurvival.thirst, playerSurvival.maxThirst);
+        if (healthBar != null) healthBar.value = Normalized(playerSurvival.health, playerSurvival.maxHealth);
     }
 
     // Called by GameManager.OnPlayerDeath().
     public void ShowDeathScreen(float survivalTime, float bestTime)
     {
         if (deathScreenPanel != null) deathScreenPanel.SetActive(true);
-        if (survivalTimeText != null) survivalTimeText.text = FormatTime(survivalTime);
+        if (survivalTimeText != null) survivalTimeText.text = "SURVIVED: " + FormatTime(survivalTime);
         if (bestTimeText != null) bestTimeText.text = "BEST: " + FormatTime(bestTime);
+
+        if (deathScreenPanel != null && EventSystem.current != null)
+        {
+            Button restart = deathScreenPanel.transform.Find("Restart")?.GetComponent<Button>();
+            if (restart != null) EventSystem.current.SetSelectedGameObject(restart.gameObject);
+        }
     }
 
     // Wired to the Restart button's OnClick() in the Inspector.
     public void OnRestartButton()
     {
-        GameManager.Instance.Restart();
+        GameManager.Instance?.Restart();
     }
 
     public void OnMainMenuButton()
@@ -94,5 +112,10 @@ public class UIManager : MonoBehaviour
         int m = Mathf.FloorToInt(seconds / 60f);
         int s = Mathf.FloorToInt(seconds % 60f);
         return $"{m:00}:{s:00}";
+    }
+
+    private static float Normalized(float value, float maximum)
+    {
+        return maximum > 0f ? Mathf.Clamp01(value / maximum) : 0f;
     }
 }

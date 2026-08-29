@@ -9,10 +9,18 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float deadZoneWidth = 1f;
     [SerializeField] private float deadZoneHeight = 1f;
 
+    [Header("World Bounds")]
+    [SerializeField] private bool constrainToBounds = true;
+    [SerializeField] private Vector2 minimumBounds = new Vector2(-13.5f, -8.5f);
+    [SerializeField] private Vector2 maximumBounds = new Vector2(13.5f, 8.5f);
+
     private Vector3 offset;
+    private Camera cameraComponent;
 
     private void Start()
     {
+        cameraComponent = GetComponent<Camera>();
+
         // Find player automatically if one wasn't assigned
         if (player == null)
         {
@@ -63,6 +71,23 @@ public class CameraFollow : MonoBehaviour
         }
 
         // Keep the camera's original Z position
+        if (constrainToBounds && cameraComponent != null && cameraComponent.orthographic)
+        {
+            Vector2 activeMinimum = WorldBoundary.Instance != null ? WorldBoundary.Instance.WorldMinimum : minimumBounds;
+            Vector2 activeMaximum = WorldBoundary.Instance != null ? WorldBoundary.Instance.WorldMaximum : maximumBounds;
+            float halfHeight = cameraComponent.orthographicSize;
+            float halfWidth = halfHeight * cameraComponent.aspect;
+            cameraPosition.x = ClampAxis(cameraPosition.x, activeMinimum.x + halfWidth, activeMaximum.x - halfWidth,
+                (activeMinimum.x + activeMaximum.x) * 0.5f);
+            cameraPosition.y = ClampAxis(cameraPosition.y, activeMinimum.y + halfHeight, activeMaximum.y - halfHeight,
+                (activeMinimum.y + activeMaximum.y) * 0.5f);
+        }
+
         transform.position = cameraPosition;
+    }
+
+    private static float ClampAxis(float value, float minimum, float maximum, float fallbackCenter)
+    {
+        return minimum <= maximum ? Mathf.Clamp(value, minimum, maximum) : fallbackCenter;
     }
 }

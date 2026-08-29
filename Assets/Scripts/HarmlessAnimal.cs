@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 // Harmless animals wander, react to nearby creatures, and seek food when hungry.
 // They never attack the player. Real predators and revealed imposters both use the
@@ -13,6 +14,8 @@ public class HarmlessAnimal : Creature
     public float foodSearchRadius = 8f;
 
     private Transform fleeingFrom;
+    private Transform playerAvoidanceTarget;
+    private readonly HashSet<Transform> predatorThreats = new HashSet<Transform>();
     private float fleeUntil;
     private float fleeWobbleTimer;
     private float fleeWobbleSign;
@@ -29,6 +32,8 @@ public class HarmlessAnimal : Creature
     {
         CurrentState = State.Wander;
         fleeingFrom = null;
+        playerAvoidanceTarget = null;
+        predatorThreats.Clear();
         targetFood = null;
         foodSeekRoutine = null;
         nextFoodSearchTime = 0f;
@@ -48,6 +53,8 @@ public class HarmlessAnimal : Creature
 
         foodSeekRoutine = null;
         fleeingFrom = null;
+        playerAvoidanceTarget = null;
+        predatorThreats.Clear();
         targetFood = null;
     }
 
@@ -90,6 +97,7 @@ public class HarmlessAnimal : Creature
                 break;
 
             case State.Flee:
+                fleeingFrom = SelectPriorityThreat();
                 bool threatMissing = fleeingFrom == null;
                 bool safelyAway = !threatMissing &&
                     Vector2.Distance(transform.position, fleeingFrom.position) > data.detectionRange * 1.5f;
@@ -104,8 +112,11 @@ public class HarmlessAnimal : Creature
     {
         if (!IsReadyToMove || data == null) return;
 
-        if (CurrentState == State.Flee && fleeingFrom != null)
+        if (CurrentState == State.Flee)
         {
+            fleeingFrom = SelectPriorityThreat();
+            if (fleeingFrom == null) return;
+
             Vector2 away = ((Vector2)transform.position - (Vector2)fleeingFrom.position).normalized;
 
             fleeWobbleTimer -= Time.fixedDeltaTime;
@@ -123,22 +134,25 @@ public class HarmlessAnimal : Creature
 
     protected override void HandleDetectionEnter(Collider2D other)
     {
-        if (data == null) return;
+        if (!enabled || data == null) return;
 
         if (other.CompareTag("Predator"))
         {
-            StartFlee(other.transform, data.minFleeTime);
+            ReactToThreat(other.transform);
         }
         else if (other.CompareTag("Player") && Random.value < data.playerAvoidanceChance)
         {
             // Keep this subtle and probabilistic so it cannot identify an imposter.
-            StartFlee(other.transform, data.playerAvoidanceTime);
+            playerAvoidanceTarget = other.transform;
+            StartFlee(data.playerAvoidanceTime);
         }
     }
 
     protected override void HandleDetectionExit(Collider2D other)
     {
-        // Distance and the minimum flee duration are evaluated in Update.
+        // Keep departed threats until the minimum flee duration and safe-distance
+        // checks pass. The nearest tracked predator remains the priority if several
+        // detection zones overlap.
     }
 
     private void BeginSeekingFood()
@@ -229,13 +243,23 @@ public class HarmlessAnimal : Creature
         eatTimer = 0f;
     }
 
-    private void StartFlee(Transform threat, float minimumDuration)
+    // ImposterComponent uses this when its tag changes while already overlapping an
+    // animal's trigger. Changing a tag alone does not produce a new trigger-enter event.
+    public void ReactToThreat(Transform threat)
     {
+        if (!enabled || data == null || threat == null || threat == transform) return;
+        predatorThreats.Add(threat);
+        StartFlee(data.minFleeTime);
+    }
+
+    private void StartFlee(float minimumDuration)
+    {
+        Transform threat = SelectPriorityThreat();
         if (threat == null) return;
 
         CancelFoodActivity();
         fleeingFrom = threat;
-        fleeUntil = Time.time + Mathf.Max(0f, minimumDuration);
+        fleeUntil = Mathf.Max(fleeUntil, Time.time + Mathf.Max(0f, minimumDuration));
         CurrentState = State.Flee;
         StopWandering();
         fleeWobbleTimer = 0f;
@@ -245,9 +269,31 @@ public class HarmlessAnimal : Creature
     private void EndFlee()
     {
         fleeingFrom = null;
+        playerAvoidanceTarget = null;
+        predatorThreats.Clear();
         fleeUntil = 0f;
         CurrentState = State.Wander;
         StartWandering();
+    }
+
+    private Transform SelectPriorityThreat()
+    {
+        predatorThreats.RemoveWhere(threat =>
+            threat == null || !threat.gameObject.activeInHierarchy || !threat.CompareTag("Predator"));
+
+        Transform nearestPredator = null;
+        float nearestSqrDistance = Mathf.Infinity;
+        foreach (Transform threat in predatorThreats)
+        {
+            float sqrDistance = ((Vector2)(threat.position - transform.position)).sqrMagnitude;
+            if (sqrDistance < nearestSqrDistance)
+            {
+                nearestSqrDistance = sqrDistance;
+                nearestPredator = threat;
+            }
+        }
+
+        return nearestPredator != null ? nearestPredator : playerAvoidanceTarget;
     }
 
     public void Die()

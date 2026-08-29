@@ -637,7 +637,7 @@ public class MainMenuController : MonoBehaviour
 
     private static void EnsureEventSystem()
     {
-        if (FindFirstObjectByType<EventSystem>() != null) return;
+        if (FindAnyObjectByType<EventSystem>() != null) return;
         new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
     }
 

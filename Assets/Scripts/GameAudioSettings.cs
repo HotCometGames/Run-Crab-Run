@@ -25,7 +25,7 @@ public static class GameAudioSettings
 
     public static void ApplyToActiveSources()
     {
-        foreach (AudioVolumeCategory source in Object.FindObjectsByType<AudioVolumeCategory>(FindObjectsSortMode.None))
+        foreach (AudioVolumeCategory source in Object.FindObjectsByType<AudioVolumeCategory>())
         {
             source.ApplyVolume();
         }

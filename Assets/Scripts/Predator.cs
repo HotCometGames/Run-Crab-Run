@@ -35,6 +35,14 @@ public abstract class Predator : Creature
     {
         gameObject.tag = "Predator";
         CurrentState = State.Wander;
+
+        if (data == null)
+        {
+            hunger = 0f;
+            StopWandering();
+            return;
+        }
+
         hunger = data.maxHunger;
         StartWandering();
     }
@@ -47,10 +55,12 @@ public abstract class Predator : Creature
 
     protected virtual void FixedUpdate()
     {
+        if (data == null) return;
+
         if (attackTimer > 0f)
             attackTimer -= Time.fixedDeltaTime;
 
-        if (data.maxHunger > 0f)
+        if (data.maxHunger > 0f && data.hungerDrainPerSecond > 0f)
         {
             hunger -= data.hungerDrainPerSecond * Time.fixedDeltaTime;
             if (hunger <= 0f)
@@ -62,6 +72,15 @@ public abstract class Predator : Creature
         }
 
         if (!IsReadyToMove) return;
+
+        // A player can leave a hiding spot while already inside the trigger, which
+        // does not fire OnTriggerEnter2D again. Polling only this single distance while
+        // wandering closes that blind spot without adding a world scan.
+        if (CurrentState == State.Wander && player != null && !PlayerIsHidden() &&
+            DistanceToPlayer() <= data.detectionRange)
+        {
+            BeginChase();
+        }
 
         switch (CurrentState)
         {
@@ -96,7 +115,7 @@ public abstract class Predator : Creature
 
     private void DoChasePrey()
     {
-        if (chasingPrey == null)
+        if (data.hungerDrainPerSecond <= 0f || !TryGetActivePrey(out _))
         {
             EndChasePrey();
             return;
@@ -136,8 +155,11 @@ public abstract class Predator : Creature
 
     protected virtual void BeginChase()
     {
+        if (data == null || player == null) return;
+
         CurrentState = State.Chase;
         chasingPrey = null;
+        lastKnownPlayerPos = player.position;
         StopWandering();
     }
 
@@ -180,17 +202,29 @@ public abstract class Predator : Creature
     private void EatPrey()
     {
         if (attackTimer > 0f) return;
+
+        if (!TryGetActivePrey(out HarmlessAnimal animal))
+        {
+            EndChasePrey();
+            return;
+        }
+
         attackTimer = data.attackCooldown;
 
         hunger = Mathf.Min(hunger + data.hungerOnEat, data.maxHunger);
 
-        if (chasingPrey != null)
-        {
-            var animal = chasingPrey.GetComponent<HarmlessAnimal>();
-            if (animal != null) animal.Die();
-        }
+        animal.Die();
 
         EndChasePrey();
+    }
+
+    private bool TryGetActivePrey(out HarmlessAnimal animal)
+    {
+        animal = null;
+        if (chasingPrey == null || !chasingPrey.CompareTag(TagAnimal)) return false;
+
+        animal = chasingPrey.GetComponent<HarmlessAnimal>();
+        return animal != null && animal.enabled;
     }
 
     private void Die()
@@ -201,7 +235,7 @@ public abstract class Predator : Creature
 
     protected override void HandleDetectionEnter(Collider2D other)
     {
-        if (!enabled) return;
+        if (!enabled || data == null) return;
 
         if (CurrentState == State.Wander || CurrentState == State.Search)
         {
@@ -211,7 +245,8 @@ public abstract class Predator : Creature
                 return;
             }
 
-            if (other.CompareTag(TagAnimal) && CurrentState == State.Wander)
+            if (data.hungerDrainPerSecond > 0f && other.CompareTag(TagAnimal) &&
+                CurrentState == State.Wander)
             {
                 var animal = other.GetComponent<HarmlessAnimal>();
                 if (animal != null && animal.enabled)
@@ -235,5 +270,10 @@ public abstract class Predator : Creature
 
     // Called by ImposterComponent the instant a disguise is revealed, to skip straight
     // to chasing instead of waiting for this predator's own DetectionZone to fire.
-    public void ForceBeginChase() => BeginChase();
+    public void ForceBeginChase()
+    {
+        if (data == null || player == null) return;
+        SkipSpawnDelay();
+        BeginChase();
+    }
 }

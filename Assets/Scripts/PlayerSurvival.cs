@@ -23,10 +23,16 @@ public class PlayerSurvival : MonoBehaviour
     [Header("Health")]
     public float maxHealth = 3f;
     public float health = 3f;
-    public float timeToRegenHealth = 15f; // seconds of not taking damage before health starts to regen
-    public float lastDamageTime = 0f; // time of last damage taken, used to determine when to start regen
+    [Tooltip("Seconds without damage before health regeneration starts.")]
+    public float timeToRegenHealth = 15f;
+    [Tooltip("Health restored per second after the regeneration delay.")]
+    public float healthRegenPerSecond = 1f;
+    [Tooltip("Brief grace period after a hit so overlapping predators cannot remove every heart in one frame.")]
+    public float damageInvulnerabilityTime = 0.65f;
+    [HideInInspector] public float lastDamageTime = 0f;
 
     private PlayerController controller;
+    private float invulnerabilityTimer;
 
     private void Awake()
     {
@@ -35,6 +41,8 @@ public class PlayerSurvival : MonoBehaviour
 
     private void Update()
     {
+        if (controller == null || controller.IsDead) return;
+
         float hungerDrain = hungerDrainPerSecond * (controller.IsSprinting ? sprintHungerMultiplier : 1f);
         hunger -= hungerDrain * Time.deltaTime;
         thirst -= thirstDrainPerSecond * Time.deltaTime;
@@ -42,15 +50,11 @@ public class PlayerSurvival : MonoBehaviour
         hunger = Mathf.Clamp(hunger, 0f, maxHunger);
         thirst = Mathf.Clamp(thirst, 0f, maxThirst);
 
+        lastDamageTime += Time.deltaTime;
+        invulnerabilityTimer = Mathf.Max(0f, invulnerabilityTimer - Time.deltaTime);
+
         if (lastDamageTime >= timeToRegenHealth && health < maxHealth)
-        {
-            health += 1; // regen 1 health per second
-            health = Mathf.Clamp(health, 0f, maxHealth);
-            lastDamageTime = 0f; // reset timer after regen
-        } else
-        {
-            lastDamageTime += Time.deltaTime;
-        }
+            health = Mathf.MoveTowards(health, maxHealth, healthRegenPerSecond * Time.deltaTime);
 
         if (hunger <= 0f || thirst <= 0f)
         {
@@ -59,16 +63,30 @@ public class PlayerSurvival : MonoBehaviour
     }
 
     // Called by ResourceNode.cs when the player eats/drinks.
-    public void ConsumeFood(float amount) => hunger = Mathf.Clamp(hunger + amount, 0f, maxHunger);
-    public void ConsumeWater(float amount) => thirst = Mathf.Clamp(thirst + amount, 0f, maxThirst);
+    public bool ConsumeFood(float amount)
+    {
+        if (controller == null || controller.IsDead || amount <= 0f || hunger >= maxHunger) return false;
+        hunger = Mathf.Clamp(hunger + amount, 0f, maxHunger);
+        return true;
+    }
+
+    public bool ConsumeWater(float amount)
+    {
+        if (controller == null || controller.IsDead || amount <= 0f || thirst >= maxThirst) return false;
+        thirst = Mathf.Clamp(thirst + amount, 0f, maxThirst);
+        return true;
+    }
+
     public void TakeDamage(float amount)
     {
-        health -= amount;
-        lastDamageTime = 0;
+        if (controller == null || controller.IsDead || amount <= 0f || invulnerabilityTimer > 0f) return;
+
+        health = Mathf.Max(0f, health - amount);
+        lastDamageTime = 0f;
+        invulnerabilityTimer = Mathf.Max(0f, damageInvulnerabilityTime);
+        controller.ShowDamageFeedback();
 
         if (health <= 0f)
-        {
             controller.Die();
-        }
     }
 }

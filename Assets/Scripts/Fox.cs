@@ -14,18 +14,24 @@ public class Fox : Predator
     public float maxChaseDuration = 4f;
 
     private float chaseClock;
+    private float reacquirePlayerAt;
 
     protected override void BeginChase()
     {
+        if (Time.time < reacquirePlayerAt) return;
+
         base.BeginChase();
-        chaseClock = 0f;
+        if (CurrentState == State.Chase)
+            chaseClock = 0f;
     }
 
     protected override void DoChase()
     {
         chaseClock += Time.fixedDeltaTime;
-        if (chaseClock >= maxChaseDuration)
+        if (maxChaseDuration > 0f && chaseClock >= maxChaseDuration)
         {
+            float breakDuration = data != null ? Mathf.Max(0.25f, data.loseInterestTime) : 1f;
+            reacquirePlayerAt = Time.time + breakDuration;
             BeginSearch();
             return;
         }

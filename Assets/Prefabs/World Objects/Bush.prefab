@@ -137,3 +137,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f5a05f57ea17d24c9b2f3f6a1053e04, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  hideSound: {fileID: 8300000, guid: 47a6b3df002a3584f9558a4e8c54c95f, type: 3}

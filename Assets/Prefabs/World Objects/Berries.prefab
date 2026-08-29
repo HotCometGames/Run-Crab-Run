@@ -103,7 +103,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   type: 0
   restoreAmount: 30
-  uses: 1
+  uses: 3
+  regenRate: 0.1
+  waterRegenPerSecond: 5
+  depletedTint: {r: 0.45, g: 0.45, b: 0.45, a: 0.65}
+  interactionSound: {fileID: 0}
 --- !u!58 &1791344925957904620
 CircleCollider2D:
   m_ObjectHideFlags: 0

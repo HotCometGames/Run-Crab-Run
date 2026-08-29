@@ -39,12 +39,19 @@ public abstract class Creature : MonoBehaviour
     private Coroutine wanderRoutine;
     private float spawnTimer;
 
+    private const float WanderArrivalDistance = 0.15f;
+    private const float WanderNoProgressTimeout = 0.75f;
+    private const float WanderProgressDistance = 0.01f;
+
     protected virtual void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
         spawnPoint = transform.position;
-        spawnTimer = spawnDelay;
+        spawnTimer = Mathf.Max(0f, spawnDelay);
+
+        if (data == null)
+            Debug.LogError($"{name}: {GetType().Name} requires a CreatureData asset.", this);
 
         var playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
@@ -75,6 +82,13 @@ public abstract class Creature : MonoBehaviour
 
     protected bool IsReadyToMove => spawnTimer <= 0f;
 
+    // Used when a dormant behaviour must react immediately, most notably when an
+    // imposter enables its hidden Predator component after the disguise breaks.
+    protected void SkipSpawnDelay()
+    {
+        spawnTimer = 0f;
+    }
+
     protected float DistanceToPlayer() =>
         player == null ? Mathf.Infinity : Vector2.Distance(transform.position, player.position);
 
@@ -83,10 +97,12 @@ public abstract class Creature : MonoBehaviour
 
     protected virtual void Update()
     {
+        if (data == null) return;
+
         if (spawnTimer > 0f)
         {
             spawnTimer -= Time.deltaTime;
-            if (spawnTimer <= 0f && wanderRoutine == null)
+            if (spawnTimer <= 0f && wanderRoutine == null && !ShouldInterruptWander())
                 StartWandering();
         }
     }
@@ -117,18 +133,39 @@ public abstract class Creature : MonoBehaviour
     // until a subclass state (Flee / Chase / Search) interrupts it.
     private IEnumerator WanderRoutine()
     {
-        while (true)
+        while (data != null)
         {
             wanderTarget = ChooseWanderTarget();
 
-            while (Vector2.Distance(rb.position, wanderTarget) > 0.15f)
+            float startingDistance = Vector2.Distance(rb.position, wanderTarget);
+            float estimatedTravelTime = startingDistance / Mathf.Max(data.moveSpeed, 0.1f);
+            float travelDeadline = Time.time + Mathf.Clamp(estimatedTravelTime * 2f + 1f, 2f, 12f);
+            Vector2 lastProgressPosition = rb.position;
+            float noProgressTimer = 0f;
+
+            while (Vector2.Distance(rb.position, wanderTarget) > WanderArrivalDistance)
             {
                 if (ShouldInterruptWander()) yield break;
+                if (Time.time >= travelDeadline) break;
+
                 MoveTowards(wanderTarget, data.moveSpeed);
                 yield return new WaitForFixedUpdate();
+
+                if (Vector2.Distance(rb.position, lastProgressPosition) >= WanderProgressDistance)
+                {
+                    lastProgressPosition = rb.position;
+                    noProgressTimer = 0f;
+                }
+                else
+                {
+                    noProgressTimer += Time.fixedDeltaTime;
+                    if (noProgressTimer >= WanderNoProgressTimeout) break;
+                }
             }
 
-            yield return new WaitForSeconds(Random.Range(data.minWanderPause, data.maxWanderPause));
+            float minPause = Mathf.Max(0f, data.minWanderPause);
+            float maxPause = Mathf.Max(minPause, data.maxWanderPause);
+            yield return new WaitForSeconds(Random.Range(minPause, maxPause));
         }
     }
 
@@ -138,13 +175,15 @@ public abstract class Creature : MonoBehaviour
     // Harmless animals can override this to choose a more social wander destination.
     protected virtual Vector2 ChooseWanderTarget()
     {
+        if (data == null) return spawnPoint;
+
         Vector2 offset = Random.insideUnitCircle * data.wanderRadius;
         return spawnPoint + offset;
     }
 
     protected void StartWandering()
     {
-        if (!IsReadyToMove) return;
+        if (data == null || !IsReadyToMove || ShouldInterruptWander()) return;
         StopWandering();
         wanderRoutine = StartCoroutine(WanderRoutine());
     }

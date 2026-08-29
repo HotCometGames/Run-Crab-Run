@@ -26,5 +26,5 @@ MonoBehaviour:
   minWanderPause: 0.3
   maxWanderPause: 2
   maxHunger: 100
-  hungerDrainPerSecond: 8
+  hungerDrainPerSecond: 0
   hungerOnEat: 30

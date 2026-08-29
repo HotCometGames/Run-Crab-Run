@@ -32,6 +32,8 @@ public class SpawnManager : MonoBehaviour
     public int maxTotalCreatures = 50;
     [Tooltip("Random offset radius around each spawn point.")]
     public float spawnRadius = 1.5f;
+    [Tooltip("Avoid popping new creatures directly beside the player.")]
+    public float minSpawnDistanceFromPlayer = 6f;
 
     private void Start()
     {
@@ -47,7 +49,7 @@ public class SpawnManager : MonoBehaviour
         while (true)
         {
             float interval = difficulty != null ? difficulty.CurrentTier.spawnInterval : 8f;
-            yield return new WaitForSeconds(interval);
+            yield return new WaitForSeconds(Mathf.Max(0.5f, interval));
 
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) yield break;
             SpawnBatch();
@@ -56,22 +58,21 @@ public class SpawnManager : MonoBehaviour
 
     private void SpawnBatch()
     {
-        if (spawnPoints.Length == 0) return;
+        if (spawnPoints == null || spawnPoints.Length == 0) return;
 
         DifficultyManager.Tier tier = difficulty != null ? difficulty.CurrentTier : default;
 
-        int currentCount = FindObjectsOfType<Creature>().Length;
+        int currentCount = CountCreatureGameObjects();
         int remaining = maxTotalCreatures - currentCount;
         if (remaining <= 0) return;
 
-        int predatorCount = Random.Range(
-            Mathf.Max(tier.minPredators, 0),
-            Mathf.Max(tier.maxPredators, 0) + 1
-        );
-        int friendlyCount = Random.Range(
-            Mathf.Max(tier.minFriendlies, 0),
-            Mathf.Max(tier.maxFriendlies, 0) + 1
-        );
+        int minPredators = Mathf.Max(0, Mathf.Min(tier.minPredators, tier.maxPredators));
+        int maxPredators = Mathf.Max(minPredators, Mathf.Max(tier.minPredators, tier.maxPredators));
+        int minFriendlies = Mathf.Max(0, Mathf.Min(tier.minFriendlies, tier.maxFriendlies));
+        int maxFriendlies = Mathf.Max(minFriendlies, Mathf.Max(tier.minFriendlies, tier.maxFriendlies));
+
+        int predatorCount = Random.Range(minPredators, maxPredators + 1);
+        int friendlyCount = Random.Range(minFriendlies, maxFriendlies + 1);
 
         predatorCount = Mathf.Min(predatorCount, remaining);
         remaining -= predatorCount;
@@ -81,9 +82,7 @@ public class SpawnManager : MonoBehaviour
 
         for (int i = 0; i < predatorCount; i++)
         {
-            Transform point = spawnPoints[Random.Range(0, spawnPoints.Length)];
-            Vector2 offset = Random.insideUnitCircle * spawnRadius;
-            Vector3 pos = point.position + (Vector3)offset;
+            Vector3 pos = ChooseSpawnPosition();
 
             GameObject prefab = GetRandomPredator(tier.allowedPredatorDifficulties);
             if (prefab == null) break;
@@ -94,16 +93,14 @@ public class SpawnManager : MonoBehaviour
 
         for (int i = 0; i < friendlyCount; i++)
         {
-            Transform point = spawnPoints[Random.Range(0, spawnPoints.Length)];
-            Vector2 offset = Random.insideUnitCircle * spawnRadius;
-            Vector3 pos = point.position + (Vector3)offset;
+            Vector3 pos = ChooseSpawnPosition();
             GameObject prefab;
 
-            if (Random.value < imposterChance && imposterAnimalPrefabs.Length > 0)
+            if (Random.value < imposterChance && imposterAnimalPrefabs != null && imposterAnimalPrefabs.Length > 0)
             {
                 prefab = imposterAnimalPrefabs[Random.Range(0, imposterAnimalPrefabs.Length)];
             }
-            else if (harmlessAnimalPrefabs.Length > 0)
+            else if (harmlessAnimalPrefabs != null && harmlessAnimalPrefabs.Length > 0)
             {
                 prefab = harmlessAnimalPrefabs[Random.Range(0, harmlessAnimalPrefabs.Length)];
             }
@@ -120,8 +117,12 @@ public class SpawnManager : MonoBehaviour
     private GameObject GetRandomPredator(PredatorDifficulty allowed)
     {
         List<GameObject> valid = new List<GameObject>();
+        if (predatorPrefabs == null) return null;
+        if (allowed == 0) allowed = PredatorDifficulty.All;
+
         foreach (var prefab in predatorPrefabs)
         {
+            if (prefab == null) continue;
             var creature = prefab.GetComponent<Creature>();
             if (creature != null && creature.data != null &&
                 (allowed & (PredatorDifficulty)(1 << (int)creature.data.difficulty)) != 0)
@@ -130,5 +131,36 @@ public class SpawnManager : MonoBehaviour
             }
         }
         return valid.Count > 0 ? valid[Random.Range(0, valid.Count)] : null;
+    }
+
+    private int CountCreatureGameObjects()
+    {
+        Creature[] creatures = FindObjectsByType<Creature>();
+        HashSet<GameObject> gameObjects = new HashSet<GameObject>();
+        foreach (Creature creature in creatures)
+        {
+            if (creature != null)
+                gameObjects.Add(creature.gameObject);
+        }
+
+        return gameObjects.Count;
+    }
+
+    private Vector3 ChooseSpawnPosition()
+    {
+        Transform player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        Vector3 candidate = transform.position;
+
+        for (int attempt = 0; attempt < 8; attempt++)
+        {
+            Transform point = spawnPoints[Random.Range(0, spawnPoints.Length)];
+            if (point == null) continue;
+
+            candidate = point.position + (Vector3)(Random.insideUnitCircle * Mathf.Max(0f, spawnRadius));
+            if (player == null || Vector2.Distance(candidate, player.position) >= minSpawnDistanceFromPlayer)
+                return candidate;
+        }
+
+        return candidate;
     }
 }
