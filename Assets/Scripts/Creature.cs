@@ -18,6 +18,9 @@ using System.Collections;
 [RequireComponent(typeof(Rigidbody2D))]
 public abstract class Creature : MonoBehaviour
 {
+    // WaitForFixedUpdate is stateless and safe to share across all movement coroutines.
+    protected static readonly WaitForFixedUpdate FixedUpdateYield = new WaitForFixedUpdate();
+
     [Header("Data")]
     public CreatureData data;
 
@@ -32,12 +35,13 @@ public abstract class Creature : MonoBehaviour
     protected Rigidbody2D rb;
     protected Transform player;
     protected PlayerController playerController;
-    private SpriteRenderer spriteRenderer;
+    protected CreatureMotor2D motor;
 
     protected Vector2 spawnPoint;
     private Vector2 wanderTarget;
     private Coroutine wanderRoutine;
     private float spawnTimer;
+    private Vector2 wanderHeading;
 
     private const float WanderArrivalDistance = 0.15f;
     private const float WanderNoProgressTimeout = 0.75f;
@@ -46,9 +50,12 @@ public abstract class Creature : MonoBehaviour
     protected virtual void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        motor = GetComponent<CreatureMotor2D>();
+        if (motor == null) motor = gameObject.AddComponent<CreatureMotor2D>();
         spawnPoint = transform.position;
         spawnTimer = Mathf.Max(0f, spawnDelay);
+        wanderHeading = Random.insideUnitCircle.normalized;
+        if (wanderHeading.sqrMagnitude < 0.0001f) wanderHeading = Vector2.right;
 
         if (data == null)
             Debug.LogError($"{name}: {GetType().Name} requires a CreatureData asset.", this);
@@ -69,6 +76,8 @@ public abstract class Creature : MonoBehaviour
 
     protected virtual void OnDestroy()
     {
+        motor?.Release(this);
+
         if (detectionZone != null)
         {
             detectionZone.OnEnter -= HandleDetectionEnter;
@@ -107,27 +116,33 @@ public abstract class Creature : MonoBehaviour
         }
     }
 
-    protected void MoveTowards(Vector2 target, float speed)
+    protected void MoveTowards(
+        Vector2 target,
+        float speed,
+        CreatureMovementStyle style = CreatureMovementStyle.Wander,
+        float stopRadius = 0.15f,
+        float slowRadius = -1f)
     {
-        Vector2 dir = (target - rb.position).normalized;
-        MoveInDirection(dir, speed);
+        if (motor == null || data == null) return;
+        float resolvedSlowRadius = slowRadius > stopRadius
+            ? slowRadius
+            : Mathf.Max(stopRadius + 0.1f, data.arrivalSlowRadius);
+        motor.DriveTo(this, data, target, speed, style, stopRadius, resolvedSlowRadius);
     }
 
-    // All creature movement goes through this helper so their sprites consistently face
-    // the direction they are travelling. Art that uses full directional animations can
-    // replace this with animator parameters without changing creature behaviour.
-    protected void MoveInDirection(Vector2 direction, float speed)
+    protected void MoveInDirection(
+        Vector2 direction,
+        float speed,
+        CreatureMovementStyle style = CreatureMovementStyle.Wander)
     {
-        if (direction.sqrMagnitude <= 0.0001f) return;
-
-        direction.Normalize();
-        rb.MovePosition(rb.position + direction * speed * Time.fixedDeltaTime);
-
-        if (spriteRenderer != null && Mathf.Abs(direction.x) > 0.01f)
-        {
-            spriteRenderer.flipX = direction.x < 0f;
-        }
+        if (motor == null || data == null) return;
+        motor.DriveDirection(this, data, direction, speed, style);
     }
+
+    protected void StopMoving(CreatureMovementStyle style = CreatureMovementStyle.Wander) =>
+        motor?.Brake(this, data, style);
+
+    protected void ReleaseMotor() => motor?.Release(this);
 
     // Wanders to random points around this creature's spawn location, forever,
     // until a subclass state (Flee / Chase / Search) interrupts it.
@@ -148,8 +163,13 @@ public abstract class Creature : MonoBehaviour
                 if (ShouldInterruptWander()) yield break;
                 if (Time.time >= travelDeadline) break;
 
-                MoveTowards(wanderTarget, data.moveSpeed);
-                yield return new WaitForFixedUpdate();
+                MoveTowards(
+                    wanderTarget,
+                    data.moveSpeed,
+                    CreatureMovementStyle.Wander,
+                    WanderArrivalDistance,
+                    data.arrivalSlowRadius);
+                yield return FixedUpdateYield;
 
                 if (Vector2.Distance(rb.position, lastProgressPosition) >= WanderProgressDistance)
                 {
@@ -162,6 +182,8 @@ public abstract class Creature : MonoBehaviour
                     if (noProgressTimer >= WanderNoProgressTimeout) break;
                 }
             }
+
+            StopMoving(CreatureMovementStyle.Wander);
 
             float minPause = Mathf.Max(0f, data.minWanderPause);
             float maxPause = Mathf.Max(minPause, data.maxWanderPause);
@@ -177,8 +199,46 @@ public abstract class Creature : MonoBehaviour
     {
         if (data == null) return spawnPoint;
 
-        Vector2 offset = Random.insideUnitCircle * data.wanderRadius;
-        return spawnPoint + offset;
+        float radius = Mathf.Max(0.5f, data.wanderRadius);
+        Vector2 current = rb != null ? rb.position : (Vector2)transform.position;
+        Vector2 towardHome = spawnPoint - current;
+        float leash = towardHome.magnitude / radius;
+        float homeWeight = Mathf.InverseLerp(0.45f, 0.95f, leash);
+
+        Vector2 preferredHeading = wanderHeading;
+        if (towardHome.sqrMagnitude > 0.0001f)
+            preferredHeading = Vector2.Lerp(wanderHeading, towardHome.normalized, homeWeight).normalized;
+
+        float turnRange = Mathf.Lerp(65f, 20f, homeWeight);
+        wanderHeading = Rotate(preferredHeading, Random.Range(-turnRange, turnRange)).normalized;
+
+        float step = Random.Range(radius * 0.3f, radius * 0.65f);
+        Vector2 target = current + wanderHeading * step;
+        Vector2 fromSpawn = target - spawnPoint;
+        if (fromSpawn.magnitude > radius * 0.95f)
+            target = spawnPoint + fromSpawn.normalized * radius * 0.95f;
+
+        target = ClampToWorld(target, 0.85f);
+        Vector2 actualHeading = target - current;
+        if (actualHeading.sqrMagnitude > 0.0001f)
+            wanderHeading = actualHeading.normalized;
+
+        return target;
+    }
+
+    protected Vector2 ClampToWorld(Vector2 point, float padding)
+    {
+        WorldBoundary boundary = WorldBoundary.Instance;
+        if (boundary == null) return point;
+
+        Vector2 minimum = boundary.WorldMinimum + Vector2.one * Mathf.Max(0f, padding);
+        Vector2 maximum = boundary.WorldMaximum - Vector2.one * Mathf.Max(0f, padding);
+        if (minimum.x > maximum.x || minimum.y > maximum.y)
+            return (boundary.WorldMinimum + boundary.WorldMaximum) * 0.5f;
+
+        return new Vector2(
+            Mathf.Clamp(point.x, minimum.x, maximum.x),
+            Mathf.Clamp(point.y, minimum.y, maximum.y));
     }
 
     protected void StartWandering()
@@ -192,5 +252,14 @@ public abstract class Creature : MonoBehaviour
     {
         if (wanderRoutine != null) StopCoroutine(wanderRoutine);
         wanderRoutine = null;
+        StopMoving(CreatureMovementStyle.Wander);
+    }
+
+    private static Vector2 Rotate(Vector2 vector, float degrees)
+    {
+        float radians = degrees * Mathf.Deg2Rad;
+        float sin = Mathf.Sin(radians);
+        float cos = Mathf.Cos(radians);
+        return new Vector2(vector.x * cos - vector.y * sin, vector.x * sin + vector.y * cos);
     }
 }

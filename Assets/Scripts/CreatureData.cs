@@ -25,6 +25,38 @@ public class CreatureData : ScriptableObject
     [Tooltip("Predator chase speed.")]
     public float chaseSpeed = 4.5f;
 
+    [Header("Natural Steering")]
+    [Tooltip("How quickly this creature reaches its requested speed.")]
+    [Min(0.1f)] public float acceleration = 8f;
+    [Tooltip("How quickly this creature slows down or changes to a lower speed.")]
+    [Min(0.1f)] public float deceleration = 12f;
+    [Tooltip("Maximum steering rate in degrees per second.")]
+    [Min(1f)] public float turnSpeed = 420f;
+    [Tooltip("Distance before target movement begins easing to a stop.")]
+    [Min(0.1f)] public float arrivalSlowRadius = 0.9f;
+    [Tooltip("Base distance used to anticipate solid walls.")]
+    [Min(0f)] public float obstacleLookAhead = 0.8f;
+    [Tooltip("Strength of steering around solid walls.")]
+    [Min(0f)] public float obstacleAvoidanceWeight = 1.35f;
+    [Tooltip("Distance at which creatures begin giving one another personal space.")]
+    [Min(0f)] public float separationRadius = 1.2f;
+    [Tooltip("Strength of personal-space steering.")]
+    [Min(0f)] public float separationWeight = 0.75f;
+    [Tooltip("Enable when the unflipped source sprite points right. Disable when it points left.")]
+    public bool spriteFacesRightByDefault = true;
+    [Tooltip("Horizontal speed required before the sprite may flip, preventing rapid flicker near a stop.")]
+    [Min(0f)] public float spriteFlipThreshold = 0.15f;
+
+    [Header("Movement Character")]
+    [Tooltip("Maximum amount wandering may curve away from a straight route.")]
+    [Range(0f, 45f)] public float wanderNoiseAngle = 14f;
+    [Tooltip("How quickly the gentle wander curve changes.")]
+    [Min(0.01f)] public float wanderNoiseFrequency = 0.35f;
+    [Tooltip("Maximum organic side-to-side variation while fleeing.")]
+    [Range(0f, 45f)] public float fleeNoiseAngle = 18f;
+    [Tooltip("How quickly flee variation changes.")]
+    [Min(0.01f)] public float fleeNoiseFrequency = 0.4f;
+
     [Header("Detection")]
     [Tooltip("Radius at which this creature reacts to the player or to predators (should roughly match the DetectionZone collider radius).")]
     public float detectionRange = 5f;

@@ -10,20 +10,34 @@ public class Bird : Predator
 {
     protected override void DoChase()
     {
-        if (player == null) return;
+        if (player == null)
+        {
+            StopMoving(CreatureMovementStyle.Chase);
+            return;
+        }
 
         // Deliberately skips the PlayerIsHidden() check that Predator.DoChase uses —
         // ground hiding spots (bushes) don't block a bird's view from above.
         lastKnownPlayerPos = player.position;
-        MoveTowards(player.position, data.chaseSpeed);
+        float distance = DistanceToPlayer();
 
-        if (DistanceToPlayer() <= data.attackRange)
+        if (distance <= data.attackRange)
         {
+            StopMoving(CreatureMovementStyle.Chase);
             Attack();
         }
-        else if (DistanceToPlayer() > data.detectionRange * 1.6f)
+        else if (distance > data.detectionRange * 1.6f)
         {
             BeginSearch();
+        }
+        else
+        {
+            MoveTowards(
+                player.position,
+                data.chaseSpeed,
+                CreatureMovementStyle.Chase,
+                data.attackRange * 0.82f,
+                data.attackRange + data.arrivalSlowRadius);
         }
     }
 }

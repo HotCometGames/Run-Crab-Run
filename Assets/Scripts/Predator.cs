@@ -29,6 +29,8 @@ public abstract class Predator : Creature
     public float hunger;
 
     private Transform chasingPrey;
+    private Vector2 searchTarget;
+    private float searchPauseUntil;
     private const string TagAnimal = "Animal";
 
     private void OnEnable()
@@ -51,6 +53,7 @@ public abstract class Predator : Creature
     {
         StopWandering();
         chasingPrey = null;
+        ReleaseMotor();
     }
 
     protected virtual void FixedUpdate()
@@ -92,7 +95,11 @@ public abstract class Predator : Creature
 
     protected virtual void DoChase()
     {
-        if (player == null) return;
+        if (player == null)
+        {
+            StopMoving(CreatureMovementStyle.Chase);
+            return;
+        }
 
         if (PlayerIsHidden())
         {
@@ -100,16 +107,26 @@ public abstract class Predator : Creature
             return;
         }
 
+        float distance = DistanceToPlayer();
         lastKnownPlayerPos = player.position;
-        MoveTowards(player.position, data.chaseSpeed);
 
-        if (DistanceToPlayer() <= data.attackRange)
+        if (distance <= data.attackRange)
         {
+            StopMoving(CreatureMovementStyle.Chase);
             Attack();
         }
-        else if (DistanceToPlayer() > data.detectionRange)
+        else if (distance > data.detectionRange)
         {
             BeginSearch();
+        }
+        else
+        {
+            MoveTowards(
+                player.position,
+                data.chaseSpeed,
+                CreatureMovementStyle.Chase,
+                data.attackRange * 0.82f,
+                data.attackRange + data.arrivalSlowRadius);
         }
     }
 
@@ -128,28 +145,64 @@ public abstract class Predator : Creature
             return;
         }
 
-        MoveTowards(chasingPrey.position, data.chaseSpeed);
-
         if (dist <= data.attackRange)
         {
+            StopMoving(CreatureMovementStyle.Chase);
             EatPrey();
+        }
+        else
+        {
+            MoveTowards(
+                chasingPrey.position,
+                data.chaseSpeed,
+                CreatureMovementStyle.Chase,
+                data.attackRange * 0.82f,
+                data.attackRange + data.arrivalSlowRadius);
         }
     }
 
     protected virtual void DoSearch()
     {
         searchTimer -= Time.fixedDeltaTime;
-        MoveTowards(lastKnownPlayerPos, data.moveSpeed);
 
         if (!PlayerIsHidden() && DistanceToPlayer() <= data.detectionRange)
         {
             BeginChase();
+            if (CurrentState == State.Chase) return;
+        }
+
+        if (searchTimer <= 0f)
+        {
+            EndSearch();
             return;
         }
 
-        if (searchTimer <= 0f || Vector2.Distance(rb.position, lastKnownPlayerPos) < 0.2f)
+        if (Vector2.Distance(rb.position, searchTarget) <= 0.25f)
         {
-            EndSearch();
+            StopMoving(CreatureMovementStyle.Search);
+
+            if (searchPauseUntil <= 0f)
+            {
+                searchPauseUntil = Time.time + Random.Range(0.18f, 0.5f);
+            }
+            else if (Time.time >= searchPauseUntil)
+            {
+                float searchRadius = Mathf.Clamp(data.detectionRange * 0.3f, 0.8f, 2.4f);
+                searchTarget = ClampToWorld(
+                    lastKnownPlayerPos + Random.insideUnitCircle * searchRadius,
+                    0.85f);
+                searchPauseUntil = 0f;
+            }
+        }
+        else
+        {
+            searchPauseUntil = 0f;
+            MoveTowards(
+                searchTarget,
+                data.moveSpeed,
+                CreatureMovementStyle.Search,
+                0.22f,
+                data.arrivalSlowRadius);
         }
     }
 
@@ -182,10 +235,14 @@ public abstract class Predator : Creature
         CurrentState = State.Search;
         chasingPrey = null;
         searchTimer = data.loseInterestTime;
+        searchTarget = ClampToWorld(lastKnownPlayerPos, 0.85f);
+        searchPauseUntil = 0f;
+        StopWandering();
     }
 
     protected virtual void EndSearch()
     {
+        StopMoving(CreatureMovementStyle.Search);
         CurrentState = State.Wander;
         StartWandering();
     }
@@ -239,7 +296,10 @@ public abstract class Predator : Creature
 
         if (CurrentState == State.Wander || CurrentState == State.Search)
         {
-            if (other.CompareTag("Player") && !PlayerIsHidden())
+            // Trigger overlap includes the player's body radius. The center-distance
+            // check avoids entering Chase at the trigger fringe only to drop it again.
+            if (other.CompareTag("Player") && !PlayerIsHidden() &&
+                DistanceToPlayer() <= data.detectionRange)
             {
                 BeginChase();
                 return;
@@ -275,5 +335,6 @@ public abstract class Predator : Creature
         if (data == null || player == null) return;
         SkipSpawnDelay();
         BeginChase();
+        motor?.RedirectForReveal(this, data, player.position);
     }
 }

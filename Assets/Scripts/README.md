@@ -55,11 +55,17 @@ Make one per creature type and tune values to match the doc's examples:
 |----------------|-----------|------------|-----------------|-------------|-------------------|
 | Data_Deer      | 2.5       | –          | 5               | –           | –                 |
 | Data_Sheep     | 2.3       | –          | 5               | –           | –                 |
-| Data_Wolf      | 2.0       | 3.2        | 8               | 0.6         | 5                 |
-| Data_Fox       | 2.8       | 5.5        | 6               | 0.5         | 2                 |
+| Data_Wolf      | 2.0       | 4.6        | 8               | 1.1         | 5                 |
+| Data_Fox       | 2.8       | 5.5        | 6               | 1.1         | 2                 |
 
 (`fleeSpeed`, `wanderRadius`, `minWanderPause`/`maxWanderPause` are used by every
 creature type — tune to taste, defaults are reasonable.)
+
+`CreatureMotor2D` is added automatically at runtime. Its acceleration, braking,
+turning, arrival, wall-avoidance, separation, and movement-character values come from
+the assigned `CreatureData`. Set `spriteFacesRightByDefault` to match the source art;
+the motor only handles a stable horizontal flip, so an Animator can be added later
+without changing any AI behaviour.
 
 ---
 

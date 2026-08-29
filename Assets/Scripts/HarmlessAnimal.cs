@@ -17,8 +17,7 @@ public class HarmlessAnimal : Creature
     private Transform playerAvoidanceTarget;
     private readonly HashSet<Transform> predatorThreats = new HashSet<Transform>();
     private float fleeUntil;
-    private float fleeWobbleTimer;
-    private float fleeWobbleSign;
+    private float fleeNoiseOffset;
 
     private float hunger;
     private float eatTimer;
@@ -37,6 +36,7 @@ public class HarmlessAnimal : Creature
         targetFood = null;
         foodSeekRoutine = null;
         nextFoodSearchTime = 0f;
+        fleeNoiseOffset = Random.Range(0f, 1000f);
 
         if (data != null)
             hunger = data.friendlyMaxHunger;
@@ -56,6 +56,7 @@ public class HarmlessAnimal : Creature
         playerAvoidanceTarget = null;
         predatorThreats.Clear();
         targetFood = null;
+        ReleaseMotor();
     }
 
     protected override void Update()
@@ -115,20 +116,22 @@ public class HarmlessAnimal : Creature
         if (CurrentState == State.Flee)
         {
             fleeingFrom = SelectPriorityThreat();
-            if (fleeingFrom == null) return;
-
-            Vector2 away = ((Vector2)transform.position - (Vector2)fleeingFrom.position).normalized;
-
-            fleeWobbleTimer -= Time.fixedDeltaTime;
-            if (fleeWobbleTimer <= 0f)
+            if (fleeingFrom == null)
             {
-                fleeWobbleSign = -fleeWobbleSign;
-                fleeWobbleTimer = Random.Range(0.15f, 0.4f);
+                StopMoving(CreatureMovementStyle.Flee);
+                return;
             }
 
-            Vector2 perpendicular = new Vector2(-away.y, away.x) * fleeWobbleSign;
-            Vector2 direction = (away + perpendicular * 0.4f).normalized;
-            MoveInDirection(direction, data.fleeSpeed);
+            Vector2 away = (Vector2)transform.position - (Vector2)fleeingFrom.position;
+            if (away.sqrMagnitude < 0.0001f)
+                away = Random.insideUnitCircle;
+
+            away.Normalize();
+            float noise = Mathf.PerlinNoise(
+                fleeNoiseOffset,
+                Time.time * data.fleeNoiseFrequency) * 2f - 1f;
+            Vector2 direction = Rotate(away, noise * data.fleeNoiseAngle);
+            MoveInDirection(direction, data.fleeSpeed, CreatureMovementStyle.Flee);
         }
     }
 
@@ -182,8 +185,13 @@ public class HarmlessAnimal : Creature
                 yield break;
             }
 
-            MoveTowards(targetFood.transform.position, data.moveSpeed);
-            yield return new WaitForFixedUpdate();
+            MoveTowards(
+                targetFood.transform.position,
+                data.moveSpeed,
+                CreatureMovementStyle.SeekFood,
+                0.45f,
+                data.arrivalSlowRadius);
+            yield return FixedUpdateYield;
         }
 
         foodSeekRoutine = null;
@@ -223,6 +231,7 @@ public class HarmlessAnimal : Creature
     {
         CurrentState = State.Eat;
         eatTimer = data.eatDuration;
+        StopMoving(CreatureMovementStyle.SeekFood);
     }
 
     private void FinishEating()
@@ -262,8 +271,6 @@ public class HarmlessAnimal : Creature
         fleeUntil = Mathf.Max(fleeUntil, Time.time + Mathf.Max(0f, minimumDuration));
         CurrentState = State.Flee;
         StopWandering();
-        fleeWobbleTimer = 0f;
-        fleeWobbleSign = Random.value < 0.5f ? -1f : 1f;
     }
 
     private void EndFlee()
@@ -272,6 +279,7 @@ public class HarmlessAnimal : Creature
         playerAvoidanceTarget = null;
         predatorThreats.Clear();
         fleeUntil = 0f;
+        StopMoving(CreatureMovementStyle.Flee);
         CurrentState = State.Wander;
         StartWandering();
     }
@@ -316,11 +324,19 @@ public class HarmlessAnimal : Creature
                 if (candidate.gameObject != gameObject && candidate.CompareTag("Animal"))
                 {
                     Vector2 offset = Random.insideUnitCircle * data.flockArrivalRadius;
-                    return (Vector2)candidate.transform.position + offset;
+                    return ClampToWorld((Vector2)candidate.transform.position + offset, 0.85f);
                 }
             }
         }
 
         return base.ChooseWanderTarget();
+    }
+
+    private static Vector2 Rotate(Vector2 vector, float degrees)
+    {
+        float radians = degrees * Mathf.Deg2Rad;
+        float sin = Mathf.Sin(radians);
+        float cos = Mathf.Cos(radians);
+        return new Vector2(vector.x * cos - vector.y * sin, vector.x * sin + vector.y * cos);
     }
 }

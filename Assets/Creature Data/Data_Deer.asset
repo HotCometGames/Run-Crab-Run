@@ -18,6 +18,20 @@ MonoBehaviour:
   moveSpeed: 2.5
   fleeSpeed: 4
   chaseSpeed: 4.5
+  acceleration: 8
+  deceleration: 12
+  turnSpeed: 480
+  arrivalSlowRadius: 0.85
+  obstacleLookAhead: 0.8
+  obstacleAvoidanceWeight: 1.35
+  separationRadius: 1.2
+  separationWeight: 0.75
+  spriteFacesRightByDefault: 0
+  spriteFlipThreshold: 0.15
+  wanderNoiseAngle: 14
+  wanderNoiseFrequency: 0.35
+  fleeNoiseAngle: 18
+  fleeNoiseFrequency: 0.4
   detectionRange: 5
   attackRange: 0.6
   attackCooldown: 0.6
