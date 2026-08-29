@@ -12,6 +12,9 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerController : MonoBehaviour
 {
+
+    [SerializeField] private AudioClip CrabWalk;
+
     [Header("Movement")]
     public float moveSpeed = 3f;
     public float sprintMultiplier = 1.8f;
@@ -31,6 +34,8 @@ public class PlayerController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
+        SoundManager.instance.PlaySound(CrabWalk, transform, 1f);
+
     }
 
     private void Update()

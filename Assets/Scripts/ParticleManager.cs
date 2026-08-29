@@ -15,6 +15,8 @@ public class ParticleManager : MonoBehaviour
 {
     public static ParticleManager Instance { get; private set; }
 
+    public AudioClip PoofSound;
+
     public enum ParticleType
     {
         SpawnPoof,
@@ -74,6 +76,8 @@ public class ParticleManager : MonoBehaviour
             : GetParticleDuration(obj);
 
         StartCoroutine(ReturnToPool(type, obj, duration));
+
+        SoundManager.instance.PlaySound(PoofSound, transform, 1f);
     }
 
     private float GetParticleDuration(GameObject obj)

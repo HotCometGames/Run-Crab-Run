@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 3a7dbad2d20c7594aa77612c6922f738
+guid: ce37411459c6e9f48ab70b25aaf45a62
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -6961485017299336269
-    second: deer walk 2_0
+      213: -7728092469366938408
+    second: rock 3_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -37,7 +37,7 @@ TextureImporter:
   maxTextureSize: 2048
   textureSettings:
     serializedVersion: 2
-    filterMode: 0
+    filterMode: 1
     aniso: 1
     mipBias: 0
     wrapU: 1
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: deer walk 2_0
+      name: rock 3_0
       rect:
         serializedVersion: 2
-        x: 177
-        y: 141
-        width: 1694
-        height: 1781
+        x: 911
+        y: 721
+        width: 365
+        height: 363
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 3b34ba2a246d36f90800000000000000
-      internalID: -6961485017299336269
+      spriteID: 8d4230428dc40c490800000000000000
+      internalID: -7728092469366938408
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      deer walk 2_0: -6961485017299336269
+      rock 3_0: -7728092469366938408
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
