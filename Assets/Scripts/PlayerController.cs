@@ -31,6 +31,16 @@ public class PlayerController : MonoBehaviour
     public bool IsHidden { get; private set; }
     public bool IsSprinting { get; private set; }
     public bool IsDead { get; private set; }
+    public Vector2 MovementVelocity
+    {
+        get
+        {
+            if (IsDead || moveInput.sqrMagnitude <= 0f) return Vector2.zero;
+
+            float speed = moveSpeed * (IsSprinting ? sprintMultiplier : 1f);
+            return moveInput * speed;
+        }
+    }
 
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
@@ -69,8 +79,7 @@ public class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        float speed = moveSpeed * (IsSprinting ? sprintMultiplier : 1f);
-        rb.MovePosition(rb.position + moveInput * speed * Time.fixedDeltaTime);
+        rb.MovePosition(rb.position + MovementVelocity * Time.fixedDeltaTime);
     }
 
     // Called by HidingSpot.cs when the crab enters/exits a bush trigger.

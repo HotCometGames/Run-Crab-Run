@@ -49,9 +49,10 @@ is hardcoded to Left Shift in `PlayerController`.
 The playable scene and creature prefabs use the artist's final, full-canvas PNG
 frames through `CharacterAnimation2D`; they do not require Animator Controllers.
 Idle, walk, predator chase, and crab sprint frames are selected from reusable
-`CharacterAnimationSet` assets based on real movement and AI state. Because the
-delivered art faces screen-down, only each character's `Visual` child turns toward
-travel while its Rigidbody, collider, and detection zones remain stable.
+`CharacterAnimationSet` assets based on player movement input and AI state. Because the
+crab art faces screen-up while the animal art faces screen-down, each animation set
+stores its own facing offset. Only the `Visual` child turns toward travel while its
+Rigidbody, collider, and detection zones remain stable.
 
 To reapply revised files at the existing art paths, run **Tools ▸ Run Crab Run ▸
 Apply Artist Animations**. The command normalizes import settings, rebuilds the five

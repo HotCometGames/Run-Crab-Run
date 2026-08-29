@@ -18,6 +18,7 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 965716c4ca4a843449686dfa03f38359, type: 3}
   chaseFrames: []
   sprintFrames: []
+  movementRotationOffset: 90
   walkFramesPerSecond: 2.75
   chaseFramesPerSecond: 5.5
   sprintFramesPerSecond: 5.5

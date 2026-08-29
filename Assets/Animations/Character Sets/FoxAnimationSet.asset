@@ -20,6 +20,7 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 46772ae596d429d44a0d6466e822570c, type: 3}
   - {fileID: 21300000, guid: acc61f168e10a5b499a6de5915730ce4, type: 3}
   sprintFrames: []
+  movementRotationOffset: 90
   walkFramesPerSecond: 4
   chaseFramesPerSecond: 5.5
   sprintFramesPerSecond: 5.5

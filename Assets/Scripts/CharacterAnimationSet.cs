@@ -12,6 +12,10 @@ public sealed class CharacterAnimationSet : ScriptableObject
     public Sprite[] chaseFrames;
     public Sprite[] sprintFrames;
 
+    [Header("Facing")]
+    [Tooltip("Degrees added after aiming the artwork's native forward direction toward movement.")]
+    public float movementRotationOffset = 90f;
+
     [Header("Playback")]
     [Min(0.1f)] public float walkFramesPerSecond = 4f;
     [Min(0.1f)] public float chaseFramesPerSecond = 5.5f;

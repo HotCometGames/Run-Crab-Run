@@ -64,6 +64,7 @@ public static class ArtistAnimationSetup
                 },
                 Array.Empty<string>(),
                 new[] { "Assets/Art/Crab/crab dash.png" },
+                -90f,
                 4.5f,
                 5.5f,
                 5.5f);
@@ -78,6 +79,7 @@ public static class ArtistAnimationSetup
                 },
                 Array.Empty<string>(),
                 Array.Empty<string>(),
+                90f,
                 3.5f,
                 5.5f,
                 5.5f);
@@ -92,6 +94,7 @@ public static class ArtistAnimationSetup
                 },
                 Array.Empty<string>(),
                 Array.Empty<string>(),
+                90f,
                 2.75f,
                 5.5f,
                 5.5f);
@@ -110,6 +113,7 @@ public static class ArtistAnimationSetup
                     "Assets/Art/Fox Assets/fox chase 2.png"
                 },
                 Array.Empty<string>(),
+                90f,
                 4f,
                 5.5f,
                 5.5f);
@@ -128,6 +132,7 @@ public static class ArtistAnimationSetup
                     "Assets/Art/Wolf Assets/wolf chase 2.png"
                 },
                 Array.Empty<string>(),
+                90f,
                 3.75f,
                 5.5f,
                 5.5f);
@@ -189,6 +194,7 @@ public static class ArtistAnimationSetup
         string[] walkPaths,
         string[] chasePaths,
         string[] sprintPaths,
+        float movementRotationOffset,
         float walkFramesPerSecond,
         float chaseFramesPerSecond,
         float sprintFramesPerSecond)
@@ -206,6 +212,7 @@ public static class ArtistAnimationSetup
         set.walkFrames = LoadSprites(walkPaths);
         set.chaseFrames = LoadSprites(chasePaths);
         set.sprintFrames = LoadSprites(sprintPaths);
+        set.movementRotationOffset = movementRotationOffset;
         set.walkFramesPerSecond = walkFramesPerSecond;
         set.chaseFramesPerSecond = chaseFramesPerSecond;
         set.sprintFramesPerSecond = sprintFramesPerSecond;

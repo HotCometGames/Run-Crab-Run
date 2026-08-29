@@ -1,8 +1,8 @@
 using UnityEngine;
 
-// Drives the artist's separate PNG frames from real Rigidbody motion. The artwork
-// faces screen-down, so only the visual child rotates toward travel; the physics root,
-// colliders, and detection zones stay axis-aligned and stable.
+// Drives the artist's separate PNG frames from movement. Player intent is used because
+// MovePosition does not expose dependable Rigidbody velocity; AI creatures use their
+// real Rigidbody velocity. Only the visual child rotates, keeping physics stable.
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody2D))]
 [DefaultExecutionOrder(200)]
@@ -42,7 +42,7 @@ public sealed class CharacterAnimation2D : MonoBehaviour
     {
         if (body == null || targetRenderer == null || animationSet == null) return;
 
-        Vector2 velocity = body.linearVelocity;
+        Vector2 velocity = ResolveMovementVelocity();
         UpdateFacing(velocity);
 
         MotionMode mode = ResolveMotionMode(velocity);
@@ -198,6 +198,16 @@ public sealed class CharacterAnimation2D : MonoBehaviour
         return null;
     }
 
+    private Vector2 ResolveMovementVelocity()
+    {
+        // PlayerController moves through Rigidbody2D.MovePosition, whose reported
+        // linearVelocity can be zero when Update runs. Input-derived velocity keeps
+        // player facing and frame selection deterministic in every rendered frame.
+        return playerController != null
+            ? playerController.MovementVelocity
+            : body.linearVelocity;
+    }
+
     private void UpdateFacing(Vector2 velocity)
     {
         if (!ControlsVisualFacing ||
@@ -206,8 +216,8 @@ public sealed class CharacterAnimation2D : MonoBehaviour
             return;
         }
 
-        // All delivered character art points down at zero rotation.
-        float targetAngle = Mathf.Atan2(velocity.y, velocity.x) * Mathf.Rad2Deg + 90f;
+        float targetAngle = Mathf.Atan2(velocity.y, velocity.x) * Mathf.Rad2Deg +
+            animationSet.movementRotationOffset;
         float angle = Mathf.MoveTowardsAngle(
             visualRoot.localEulerAngles.z,
             targetAngle,
