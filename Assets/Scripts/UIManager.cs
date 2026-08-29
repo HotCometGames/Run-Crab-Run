@@ -37,6 +37,7 @@ public class UIManager : MonoBehaviour
     {
         Instance = this;
         if (deathScreenPanel != null) deathScreenPanel.SetActive(false);
+        CreateMainMenuButton();
     }
 
     private void Update()
@@ -59,6 +60,33 @@ public class UIManager : MonoBehaviour
     public void OnRestartButton()
     {
         GameManager.Instance.Restart();
+    }
+
+    public void OnMainMenuButton()
+    {
+        GameManager.Instance?.ReturnToMainMenu();
+    }
+
+    // The current death panel predates the dedicated menu scene, so this adds a
+    // temporary default button without touching the artist-owned scene layout.
+    private void CreateMainMenuButton()
+    {
+        if (deathScreenPanel == null || deathScreenPanel.transform.Find("Main Menu") != null) return;
+
+        GameObject buttonObject = DefaultControls.CreateButton(new DefaultControls.Resources());
+        buttonObject.name = "Main Menu";
+        buttonObject.transform.SetParent(deathScreenPanel.transform, false);
+
+        RectTransform rect = buttonObject.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(0f, -165f);
+        rect.sizeDelta = new Vector2(200f, 38f);
+
+        buttonObject.GetComponent<Button>().onClick.AddListener(OnMainMenuButton);
+        Text label = buttonObject.GetComponentInChildren<Text>();
+        if (label != null) label.text = "MAIN MENU";
     }
 
     private string FormatTime(float seconds)
