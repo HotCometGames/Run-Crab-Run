@@ -7,6 +7,13 @@ using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
 {
+    private const string HighScoreKey = "RunCrabRun_HighScore";
+    private const int HeartCount = 3;
+    private const float ResourceBarWidth = 280f;
+    private const float ResourceBarHeight = 20f;
+
+    private enum HeartState { Dim, HalfLit, Lit }
+
     private sealed class DeathOption
     {
         public string normalText;
@@ -20,10 +27,23 @@ public class UIManager : MonoBehaviour
     public static UIManager Instance { get; private set; }
 
     [Header("HUD")]
+    [Tooltip("Legacy scene bars. They are hidden when the runtime HUD is built.")]
     public Slider hungerBar;
     public Slider thirstBar;
     public Slider healthBar;
     public PlayerSurvival playerSurvival;
+
+    [Header("HUD Art (Optional)")]
+    [SerializeField] private Sprite halfLitHeartSprite;
+    [SerializeField] private Sprite fullHeartSprite;
+    [SerializeField] private Sprite emptyHeartSprite;
+    [SerializeField] private Sprite hungerIcon;
+    [SerializeField] private Sprite thirstIcon;
+
+    [Header("HUD Animation")]
+    [SerializeField, Min(0.1f)] private float heartRegenFlashDuration = 0.4f;
+    [SerializeField, Min(1)] private int heartRegenFlashCount = 2;
+    [SerializeField, Min(0.1f)] private float resourceBarSmoothingSpeed = 10f;
 
     [Header("Legacy Death UI")]
     [Tooltip("The former scene-authored death panel. It is hidden while the runtime death transition UI is used.")]
@@ -43,6 +63,11 @@ public class UIManager : MonoBehaviour
     private readonly Color primaryTextColor = new Color(1f, 0.95f, 0.84f, 1f);
     private readonly Color mutedTextColor = new Color(0.86f, 0.78f, 0.67f, 1f);
     private readonly Color overlayColor = new Color(0.07f, 0.05f, 0.05f, 1f);
+    private readonly Color hudTextColor = new Color(0.16f, 0.13f, 0.11f, 1f);
+    private readonly Color hudMutedTextColor = new Color(0.31f, 0.25f, 0.21f, 1f);
+    private readonly Color hungerColor = new Color(0.87f, 0.31f, 0.19f, 1f);
+    private readonly Color thirstColor = new Color(0.28f, 0.66f, 0.82f, 1f);
+    private readonly Color barBackgroundColor = new Color(0.15f, 0.12f, 0.1f, 0.65f);
 
     private Font deathFont;
     private Image darkOverlay;
@@ -54,6 +79,20 @@ public class UIManager : MonoBehaviour
     private bool deathSequenceRunning;
     private bool deathMenuInteractive;
     private int selectedDeathOption;
+
+    private readonly List<Image> heartImages = new List<Image>(HeartCount);
+    private readonly Coroutine[] heartRegenRoutines = new Coroutine[HeartCount];
+    private RectTransform hungerFillRect;
+    private RectTransform thirstFillRect;
+    private Sprite hudBarSprite;
+    private Text survivalTimerText;
+    private Text bestTimerText;
+    private int targetHeartCount = -1;
+    private int displayedSecond = -1;
+    private float displayedHunger;
+    private float displayedThirst;
+    private float bestSurvivalTime;
+    private bool resourcesInitialized;
 
     private void Awake()
     {
@@ -67,6 +106,9 @@ public class UIManager : MonoBehaviour
         if (deathScreenPanel != null) deathScreenPanel.SetActive(false);
 
         deathFont = LoadComicSans();
+        LoadBundledHeartArt();
+        HideLegacyHud();
+        BuildGameplayHud();
         BuildDeathTransitionUi();
     }
 
@@ -79,10 +121,13 @@ public class UIManager : MonoBehaviour
     {
         if (playerSurvival != null)
         {
-            if (hungerBar != null) hungerBar.value = Normalized(playerSurvival.hunger, playerSurvival.maxHunger);
-            if (thirstBar != null) thirstBar.value = Normalized(playerSurvival.thirst, playerSurvival.maxThirst);
-            if (healthBar != null) healthBar.value = Normalized(playerSurvival.health, playerSurvival.maxHealth);
+            UpdateHealthDisplay();
+
+            if (!IsRunOver())
+                UpdateResourceDisplay();
         }
+
+        if (!IsRunOver()) UpdateSurvivalTimer();
 
         if (!deathMenuInteractive) return;
 
@@ -168,6 +213,313 @@ public class UIManager : MonoBehaviour
     {
         deathMenuInteractive = false;
         GameManager.Instance?.ReturnToMainMenu();
+    }
+
+    private void HideLegacyHud()
+    {
+        // The scene-authored sliders are retained for backwards-compatible Inspector
+        // references, but the new HUD owns their presentation.
+        if (hungerBar != null) hungerBar.gameObject.SetActive(false);
+        if (thirstBar != null) thirstBar.gameObject.SetActive(false);
+        if (healthBar != null) healthBar.gameObject.SetActive(false);
+    }
+
+    private void LoadBundledHeartArt()
+    {
+        // Inspector assignments take priority. These bundled defaults let the HUD use
+        // the supplied artwork without requiring a scene edit or a duplicate prefab.
+        if (halfLitHeartSprite == null) halfLitHeartSprite = LoadCenteredHeartSprite("HUD/Heart_HalfLit");
+        if (fullHeartSprite == null) fullHeartSprite = LoadCenteredHeartSprite("HUD/Heart_Lit");
+        if (emptyHeartSprite == null) emptyHeartSprite = LoadCenteredHeartSprite("HUD/Heart_Dim");
+    }
+
+    private static Sprite LoadCenteredHeartSprite(string resourcePath)
+    {
+        Texture2D source = Resources.Load<Texture2D>(resourcePath);
+        if (source == null) return null;
+
+        // The supplied source art has a large transparent canvas around a centered
+        // heart. Creating a sprite from its centre keeps the original pixels while
+        // making it an appropriate size for the compact HUD row.
+        float cropSize = Mathf.Min(256f, Mathf.Min(source.width, source.height));
+        float cropX = (source.width - cropSize) * 0.5f;
+        float cropY = (source.height - cropSize) * 0.5f;
+        return Sprite.Create(source, new Rect(cropX, cropY, cropSize, cropSize), new Vector2(0.5f, 0.5f), cropSize);
+    }
+
+    private void BuildGameplayHud()
+    {
+        GameObject root = new GameObject("Gameplay HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+        root.transform.SetParent(transform, false);
+
+        Canvas canvas = root.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 100;
+
+        CanvasScaler scaler = root.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        BuildHealthDisplay(root.transform);
+        BuildTimerDisplay(root.transform);
+        BuildResourceDisplay(root.transform);
+
+        bestSurvivalTime = PlayerPrefs.GetFloat(HighScoreKey, 0f);
+        UpdateSurvivalTimer();
+    }
+
+    private void BuildHealthDisplay(Transform parent)
+    {
+        GameObject display = new GameObject("Health Display", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        display.transform.SetParent(parent, false);
+        RectTransform rect = display.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = new Vector2(44f, -40f);
+        rect.sizeDelta = new Vector2(180f, 56f);
+
+        HorizontalLayoutGroup layout = display.GetComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleLeft;
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+        layout.spacing = 9f;
+
+        for (int i = 0; i < HeartCount; i++)
+        {
+            Image heart = CreateImage(display.transform, "Heart " + (i + 1), Color.white);
+            heart.preserveAspect = true;
+            heart.raycastTarget = false;
+            SetLayoutSize(heart.gameObject, 50f, 50f);
+            heartImages.Add(heart);
+            SetHeartSprite(i, false);
+        }
+    }
+
+    private void BuildTimerDisplay(Transform parent)
+    {
+        GameObject display = new GameObject("Timer Display", typeof(RectTransform));
+        display.transform.SetParent(parent, false);
+        RectTransform rect = display.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(0f, -24f);
+        rect.sizeDelta = new Vector2(420f, 140f);
+
+        survivalTimerText = CreateHudText(display.transform, "Current Time", "00:00", 96, TextAnchor.MiddleCenter);
+        survivalTimerText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        survivalTimerText.verticalOverflow = VerticalWrapMode.Overflow;
+        ConfigureTimerTextRect(survivalTimerText.rectTransform, 0f, 104f);
+        bestTimerText = CreateHudText(display.transform, "Best Time", "★ 00:00", 27, TextAnchor.MiddleCenter);
+        bestTimerText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        bestTimerText.verticalOverflow = VerticalWrapMode.Overflow;
+        ConfigureTimerTextRect(bestTimerText.rectTransform, -108f, 32f);
+    }
+
+    private static void ConfigureTimerTextRect(RectTransform rect, float topOffset, float height)
+    {
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(0f, topOffset);
+        rect.sizeDelta = new Vector2(420f, height);
+    }
+
+    private void BuildResourceDisplay(Transform parent)
+    {
+        GameObject display = new GameObject("Bottom Resources", typeof(RectTransform));
+        display.transform.SetParent(parent, false);
+        RectTransform rect = display.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0f);
+        rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.anchoredPosition = new Vector2(0f, 34f);
+        rect.sizeDelta = new Vector2(650f, 96f);
+
+        hungerFillRect = CreateResourceGroup(display.transform, "Hunger Display", "HUNGER", hungerIcon, hungerColor, -165f);
+        thirstFillRect = CreateResourceGroup(display.transform, "Thirst Display", "THIRST", thirstIcon, thirstColor, 165f);
+    }
+
+    private RectTransform CreateResourceGroup(Transform parent, string name, string label, Sprite iconSprite, Color fillColor, float xPosition)
+    {
+        GameObject group = new GameObject(name, typeof(RectTransform));
+        group.transform.SetParent(parent, false);
+        RectTransform groupRect = group.GetComponent<RectTransform>();
+        groupRect.anchorMin = new Vector2(0.5f, 0f);
+        groupRect.anchorMax = new Vector2(0.5f, 0f);
+        groupRect.pivot = new Vector2(0.5f, 0f);
+        groupRect.anchoredPosition = new Vector2(xPosition, 0f);
+        groupRect.sizeDelta = new Vector2(ResourceBarWidth, 96f);
+
+        Text title = CreateHudText(group.transform, "Label", label, 20, TextAnchor.MiddleCenter);
+        RectTransform titleRect = title.rectTransform;
+        titleRect.anchorMin = new Vector2(0.5f, 1f);
+        titleRect.anchorMax = new Vector2(0.5f, 1f);
+        titleRect.pivot = new Vector2(0.5f, 1f);
+        titleRect.anchoredPosition = Vector2.zero;
+        titleRect.sizeDelta = new Vector2(ResourceBarWidth, 26f);
+
+        Image icon = CreateImage(group.transform, "Icon", Color.white);
+        icon.sprite = iconSprite;
+        icon.preserveAspect = true;
+        icon.raycastTarget = false;
+        icon.enabled = iconSprite != null;
+        RectTransform iconRect = icon.rectTransform;
+        iconRect.anchorMin = new Vector2(0.5f, 1f);
+        iconRect.anchorMax = new Vector2(0.5f, 1f);
+        iconRect.pivot = new Vector2(0.5f, 1f);
+        iconRect.anchoredPosition = new Vector2(0f, -28f);
+        iconRect.sizeDelta = iconSprite != null ? new Vector2(26f, 26f) : Vector2.zero;
+
+        GameObject track = new GameObject("Track", typeof(RectTransform), typeof(Image));
+        track.transform.SetParent(group.transform, false);
+        RectTransform trackRect = track.GetComponent<RectTransform>();
+        trackRect.anchorMin = new Vector2(0.5f, 1f);
+        trackRect.anchorMax = new Vector2(0.5f, 1f);
+        trackRect.pivot = new Vector2(0.5f, 1f);
+        trackRect.anchoredPosition = new Vector2(0f, iconSprite != null ? -66f : -38f);
+        trackRect.sizeDelta = new Vector2(ResourceBarWidth, ResourceBarHeight);
+
+        Image background = track.GetComponent<Image>();
+        background.sprite = GetHudBarSprite();
+        background.color = barBackgroundColor;
+        background.raycastTarget = false;
+
+        Image fill = CreateImage(track.transform, "Fill", fillColor);
+        fill.sprite = background.sprite;
+        fill.raycastTarget = false;
+        RectTransform fillRect = fill.rectTransform;
+        fillRect.anchorMin = new Vector2(0f, 0f);
+        fillRect.anchorMax = new Vector2(0f, 1f);
+        fillRect.pivot = new Vector2(0f, 0.5f);
+        fillRect.anchoredPosition = Vector2.zero;
+        fillRect.sizeDelta = new Vector2(ResourceBarWidth, 0f);
+        return fillRect;
+    }
+
+    private void UpdateHealthDisplay()
+    {
+        int fullHearts = Mathf.Clamp(Mathf.FloorToInt(playerSurvival.health + 0.0001f), 0, HeartCount);
+        if (fullHearts == targetHeartCount) return;
+
+        if (targetHeartCount < 0 || fullHearts < targetHeartCount)
+        {
+            StopHeartAnimations();
+            for (int i = 0; i < HeartCount; i++) SetHeartSprite(i, i < fullHearts);
+        }
+        else
+        {
+            for (int i = targetHeartCount; i < fullHearts; i++)
+            {
+                StopHeartAnimation(i);
+                heartRegenRoutines[i] = StartCoroutine(FlashHeartBeforeRestore(i));
+            }
+        }
+
+        targetHeartCount = fullHearts;
+    }
+
+    private IEnumerator FlashHeartBeforeRestore(int heartIndex)
+    {
+        SetHeartSprite(heartIndex, false);
+        float stepDuration = heartRegenFlashDuration / (heartRegenFlashCount * 2f + 1f);
+
+        for (int flash = 0; flash < heartRegenFlashCount; flash++)
+        {
+            heartImages[heartIndex].enabled = false;
+            yield return new WaitForSeconds(stepDuration);
+            SetHeartSprite(heartIndex, HeartState.HalfLit);
+            yield return new WaitForSeconds(stepDuration);
+        }
+
+        SetHeartSprite(heartIndex, HeartState.Lit);
+        heartImages[heartIndex].rectTransform.localScale = Vector3.one * 1.12f;
+        yield return new WaitForSeconds(stepDuration);
+        heartImages[heartIndex].rectTransform.localScale = Vector3.one;
+        heartRegenRoutines[heartIndex] = null;
+    }
+
+    private void StopHeartAnimations()
+    {
+        for (int i = 0; i < HeartCount; i++) StopHeartAnimation(i);
+    }
+
+    private void StopHeartAnimation(int heartIndex)
+    {
+        if (heartRegenRoutines[heartIndex] != null)
+        {
+            StopCoroutine(heartRegenRoutines[heartIndex]);
+            heartRegenRoutines[heartIndex] = null;
+        }
+    }
+
+    private void SetHeartSprite(int heartIndex, bool full)
+    {
+        SetHeartSprite(heartIndex, full ? HeartState.Lit : HeartState.Dim);
+    }
+
+    private void SetHeartSprite(int heartIndex, HeartState state)
+    {
+        if (heartIndex < 0 || heartIndex >= heartImages.Count) return;
+        Image heart = heartImages[heartIndex];
+        Sprite sprite = state == HeartState.Lit
+            ? fullHeartSprite
+            : state == HeartState.HalfLit
+                ? halfLitHeartSprite
+                : emptyHeartSprite;
+        heart.sprite = sprite;
+        heart.enabled = sprite != null;
+        heart.color = Color.white;
+        heart.rectTransform.localScale = Vector3.one;
+    }
+
+    private void UpdateResourceDisplay()
+    {
+        float hunger = Normalized(playerSurvival.hunger, playerSurvival.maxHunger);
+        float thirst = Normalized(playerSurvival.thirst, playerSurvival.maxThirst);
+
+        if (!resourcesInitialized)
+        {
+            displayedHunger = hunger;
+            displayedThirst = thirst;
+            resourcesInitialized = true;
+        }
+        else
+        {
+            float blend = 1f - Mathf.Exp(-resourceBarSmoothingSpeed * Time.deltaTime);
+            displayedHunger = Mathf.Lerp(displayedHunger, hunger, blend);
+            displayedThirst = Mathf.Lerp(displayedThirst, thirst, blend);
+        }
+
+        SetResourceFillWidth(hungerFillRect, displayedHunger);
+        SetResourceFillWidth(thirstFillRect, displayedThirst);
+    }
+
+    private void UpdateSurvivalTimer()
+    {
+        GameManager manager = GameManager.Instance;
+        float survivalTime = manager != null ? manager.SurvivalTime : 0f;
+        int elapsedSeconds = Mathf.Max(0, Mathf.FloorToInt(survivalTime));
+        if (elapsedSeconds == displayedSecond) return;
+
+        displayedSecond = elapsedSeconds;
+        if (survivalTimerText != null) survivalTimerText.text = ClockText(elapsedSeconds);
+        if (bestTimerText != null) bestTimerText.text = "★ " + ClockText(bestSurvivalTime);
+    }
+
+    private static void SetResourceFillWidth(RectTransform fillRect, float normalizedValue)
+    {
+        if (fillRect == null) return;
+        fillRect.sizeDelta = new Vector2(ResourceBarWidth * Mathf.Clamp01(normalizedValue), 0f);
+    }
+
+    private static bool IsRunOver()
+    {
+        return GameManager.Instance != null && GameManager.Instance.IsGameOver;
     }
 
     private void BuildDeathTransitionUi()
@@ -324,6 +676,16 @@ public class UIManager : MonoBehaviour
         return text;
     }
 
+    private Text CreateHudText(Transform parent, string name, string value, int size, TextAnchor alignment)
+    {
+        Text text = CreateText(parent, name, value, size, alignment, Color.white);
+        Outline outline = text.gameObject.AddComponent<Outline>();
+        outline.effectColor = Color.black;
+        outline.effectDistance = new Vector2(1f, -1f);
+        outline.useGraphicAlpha = true;
+        return text;
+    }
+
     private static Image CreateImage(Transform parent, string name, Color color)
     {
         GameObject imageObject = new GameObject(name, typeof(RectTransform), typeof(Image));
@@ -331,6 +693,22 @@ public class UIManager : MonoBehaviour
         Image image = imageObject.GetComponent<Image>();
         image.color = color;
         return image;
+    }
+
+    private Sprite GetHudBarSprite()
+    {
+        if (hudBarSprite != null) return hudBarSprite;
+
+        Texture2D texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+        texture.name = "Runtime HUD Bar Texture";
+        texture.SetPixel(0, 0, Color.white);
+        texture.Apply(false, true);
+        texture.hideFlags = HideFlags.HideAndDontSave;
+
+        hudBarSprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
+        hudBarSprite.name = "Runtime HUD Bar Sprite";
+        hudBarSprite.hideFlags = HideFlags.HideAndDontSave;
+        return hudBarSprite;
     }
 
     private static void AddSpacer(Transform parent, float height)
@@ -352,6 +730,16 @@ public class UIManager : MonoBehaviour
     {
         LayoutElement element = gameObject.GetComponent<LayoutElement>();
         if (element == null) element = gameObject.AddComponent<LayoutElement>();
+        element.minHeight = height;
+        element.preferredHeight = height;
+    }
+
+    private static void SetLayoutSize(GameObject gameObject, float width, float height)
+    {
+        LayoutElement element = gameObject.GetComponent<LayoutElement>();
+        if (element == null) element = gameObject.AddComponent<LayoutElement>();
+        element.minWidth = width;
+        element.preferredWidth = width;
         element.minHeight = height;
         element.preferredHeight = height;
     }
@@ -380,6 +768,17 @@ public class UIManager : MonoBehaviour
     }
 
     private static string ScoreText(float score) => Mathf.Max(0, Mathf.FloorToInt(score)).ToString();
+
+    private static string ClockText(float seconds)
+    {
+        int totalSeconds = Mathf.Max(0, Mathf.FloorToInt(seconds));
+        int hours = totalSeconds / 3600;
+        int minutes = (totalSeconds % 3600) / 60;
+        int remainingSeconds = totalSeconds % 60;
+        return hours > 0
+            ? string.Format("{0:00}:{1:00}:{2:00}", hours, minutes, remainingSeconds)
+            : string.Format("{0:00}:{1:00}", minutes, remainingSeconds);
+    }
 
     private static Color WithAlpha(Color color, float alpha)
     {
