@@ -1,9 +1,9 @@
 using UnityEngine;
 
 // Owns the two pieces of non-spatial gameplay audio that run for the whole round:
-// looping background music and the proximity-driven heartbeat. Any nearby active
-// predator contributes danger regardless of its AI state, so hiding breaks the chase
-// without making a wolf standing beside the bush feel harmless.
+// looping background music and the heartbeat. The heartbeat only plays while the
+// player is actually being hunted, i.e. whenever a nearby predator is in its Chase
+// state. A wolf wandering or searching nearby stays silent until it commits to a hunt.
 [DisallowMultipleComponent]
 public sealed class GameplayAudioController : MonoBehaviour
 {
@@ -178,6 +178,10 @@ public sealed class GameplayAudioController : MonoBehaviour
         foreach (Predator predator in predators)
         {
             if (predator == null || !predator.isActiveAndEnabled || predator.data == null)
+                continue;
+
+            // Only a predator actively hunting the player should trigger the heartbeat.
+            if (predator.CurrentState != Predator.State.Chase)
                 continue;
 
             float sqrDistance = ((Vector2)(predator.transform.position - player.position)).sqrMagnitude;

@@ -46,7 +46,7 @@ public class SpawnManager : MonoBehaviour
 
     private IEnumerator SpawnLoop()
     {
-        yield return new WaitForSeconds(4f);
+        yield return new WaitForSeconds(.5f);
         if (GameManager.Instance != null && GameManager.Instance.IsGameOver) yield break;
         SpawnBatch();
 
