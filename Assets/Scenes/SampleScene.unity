@@ -386,6 +386,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Bush (3)
       objectReference: {fileID: 0}
+    - target: {fileID: 215224992342440052, guid: b08f84bea25e1ce4aa37ad77f8d884b5, type: 3}
+      propertyPath: m_Sprite
+      value:
+      objectReference: {fileID: 3414962456763580767, guid: 2f646242dcb0415fa64d280ddbfaa3f3, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -561,6 +565,9 @@ MonoBehaviour:
     prefab: {fileID: 6432059271448689407, guid: 6434668ae86f3f9419679cafe84f5b62, type: 3}
     overrideDuration: 0
   - type: 1
+    prefab: {fileID: 6432059271448689407, guid: 6434668ae86f3f9419679cafe84f5b62, type: 3}
+    overrideDuration: 0
+  - type: 3
     prefab: {fileID: 6432059271448689407, guid: 6434668ae86f3f9419679cafe84f5b62, type: 3}
     overrideDuration: 0
 --- !u!4 &327121565
@@ -869,33 +876,33 @@ MonoBehaviour:
   tiers:
   - startTime: 0
     spawnInterval: 8
-    imposterChance: 0.1
+    imposterChance: 0.25
     minPredators: 0
-    maxPredators: 1
+    maxPredators: 0
     minFriendlies: 1
     maxFriendlies: 1
     allowedPredatorDifficulties: 1
   - startTime: 20
     spawnInterval: 7
-    imposterChance: 0.2
-    minPredators: 1
-    maxPredators: 2
+    imposterChance: 0.35
+    minPredators: 0
+    maxPredators: 0
     minFriendlies: 2
     maxFriendlies: 2
     allowedPredatorDifficulties: 1
   - startTime: 75
     spawnInterval: 6
-    imposterChance: 0.3
-    minPredators: 2
-    maxPredators: 3
+    imposterChance: 0.45
+    minPredators: 0
+    maxPredators: 0
     minFriendlies: 3
     maxFriendlies: 4
     allowedPredatorDifficulties: 3
   - startTime: 120
     spawnInterval: 4
-    imposterChance: 0.4
-    minPredators: 2
-    maxPredators: 4
+    imposterChance: 0.5
+    minPredators: 0
+    maxPredators: 0
     minFriendlies: 3
     maxFriendlies: 4
     allowedPredatorDifficulties: -1
@@ -1290,7 +1297,7 @@ Camera:
   far clip plane: 1000
   field of view: 34
   orthographic: 1
-  orthographic size: 7.43
+  orthographic size: 3
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -1334,8 +1341,8 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   player: {fileID: 350990438}
-  deadZoneWidth: 0.5
-  deadZoneHeight: 0.5
+  deadZoneWidth: 0
+  deadZoneHeight: 0
   constrainToBounds: 1
   minimumBounds: {x: -13.5, y: -8.5}
   maximumBounds: {x: 13.5, y: 8.5}
@@ -2480,10 +2487,10 @@ MonoBehaviour:
   - {fileID: 6336680752625082876, guid: bea02d7f704333647b87ab4005842a1d, type: 3}
   imposterAnimalPrefabs:
   - {fileID: 7023619878355878992, guid: 4d9d98a44ed9a924eb7a3b7d6127439d, type: 3}
-  predatorPrefabs:
-  - {fileID: 9179179182173551990, guid: bea9ebe6399e0944c841b27bf9cbb730, type: 3}
-  - {fileID: 4801651154828921762, guid: f26ab37695dff7845b7f0728189a954f, type: 3}
+  - {fileID: 7023619878355878992, guid: bdf50cfbe65e45ea88069efecdf18028, type: 3}
   maxTotalCreatures: 30
+  maxWolves: 2
+  maxFoxes: 2
   spawnRadius: 0.75
   minSpawnDistanceFromPlayer: 6
   minSpawnDistanceFromCreatures: 1.35
@@ -2882,6 +2889,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Bush (5)
       objectReference: {fileID: 0}
+    - target: {fileID: 215224992342440052, guid: b08f84bea25e1ce4aa37ad77f8d884b5, type: 3}
+      propertyPath: m_Sprite
+      value:
+      objectReference: {fileID: 3414962456763580767, guid: 2f646242dcb0415fa64d280ddbfaa3f3, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -3147,7 +3158,6 @@ Transform:
   - {fileID: 618512932}
   - {fileID: 681611035}
   - {fileID: 1824217232}
-  - {fileID: 7206602353309128748}
   - {fileID: 341448869}
   - {fileID: 2146000012}
   m_Father: {fileID: 0}
@@ -3276,7 +3286,7 @@ MonoBehaviour:
   restoreAmount: 0
   uses: 0
   regenRate: 0
-  waterRegenPerSecond: 5
+  waterRegenPerSecond: 15
   depletedTint: {r: 0.45, g: 0.45, b: 0.45, a: 0.65}
   interactionSound: {fileID: 8300000, guid: cc084d9a73ce5f2409892efd3cc36288, type: 3}
 --- !u!60 &2019909056
@@ -3456,6 +3466,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Bush (1)
       objectReference: {fileID: 0}
+    - target: {fileID: 215224992342440052, guid: b08f84bea25e1ce4aa37ad77f8d884b5, type: 3}
+      propertyPath: m_Sprite
+      value:
+      objectReference: {fileID: 3414962456763580767, guid: 2f646242dcb0415fa64d280ddbfaa3f3, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -3584,6 +3598,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2146000021}
   - component: {fileID: 2146000022}
+  - component: {fileID: 2146000023}
   m_Layer: 0
   m_Name: Sound Manager
   m_TagString: Untagged
@@ -3619,68 +3634,29 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   soundFXObject: {fileID: 2116872666042066436, guid: e130585172596f4429edb437d229ddcb, type: 3}
---- !u!1001 &2228208754128563836
-PrefabInstance:
+--- !u!114 &2146000023
+MonoBehaviour:
   m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 1888758333}
-    m_Modifications:
-    - target: {fileID: 312464452111624894, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_Name
-      value: Well
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 4.81
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: -1.85
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0.037318073
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
---- !u!4 &7206602353309128748 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 9088218767951252256, guid: d40aa300b4babd4409a8d9cc2805a6bc, type: 3}
-  m_PrefabInstance: {fileID: 2228208754128563836}
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2146000020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 50c63ac1cb4b4692b20fad11f0618382, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::GameplayAudioController
+  backgroundMusic: {fileID: 8300000, guid: adfe3c5f776e4d2ca1270c8b193eac9c, type: 3}
+  backgroundMusicVolume: 0.45
+  heartbeatClip: {fileID: 8300000, guid: 18493b78569f417d87ee1c14d9878fef, type: 3}
+  farHeartbeatVolume: 0.14
+  nearHeartbeatVolume: 0.85
+  farHeartbeatBpm: 68
+  nearHeartbeatBpm: 120
+  nearHeartbeatPitch: 1.2
+  minimumProximityIntensity: 0.16
+  intensitySmoothing: 5
+  threatScanInterval: 0.08
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

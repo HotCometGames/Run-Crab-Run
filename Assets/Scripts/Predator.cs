@@ -22,6 +22,7 @@ public abstract class Predator : Creature
 {
     public enum State { Wander, Chase, ChasePrey, Search }
     public State CurrentState { get; protected set; } = State.Wander;
+    public bool CanCurrentlySeePlayer => data != null && CanSeePlayer();
 
     protected Vector2 lastKnownPlayerPos;
     protected float searchTimer;
@@ -35,6 +36,11 @@ public abstract class Predator : Creature
     private readonly HashSet<HarmlessAnimal> nearbyPrey = new HashSet<HarmlessAnimal>();
     private Vector2 searchTarget;
     private float searchPauseUntil;
+    private float playerChaseElapsed;
+    private float playerOutsideDetectionTimer;
+    private float playerChaseStartSpeed;
+    private float playerChaseAcceleration;
+    private float playerChaseTopSpeed;
     private float preyOutsideDetectionTimer;
     private float nextPreyHuntTime;
     private float nextPreyScanTime;
@@ -45,15 +51,24 @@ public abstract class Predator : Creature
     private const float MaximumPursuitLeadTime = 0.3f;
     private const float PreyScanInterval = 0.4f;
 
+    protected float PlayerDetectionRange =>
+        data != null ? data.EffectivePlayerDetectionRange : 0f;
+
     private void OnEnable()
     {
+        RebaseWanderOrigin();
         gameObject.tag = "Predator";
         CurrentState = State.Wander;
         CurrentPrey = null;
+        attackTimer = 0f;
+        searchTimer = 0f;
+        searchPauseUntil = 0f;
         nearbyPrey.Clear();
+        ResetPlayerChaseRamp();
         preyOutsideDetectionTimer = 0f;
         nextPreyHuntTime = 0f;
         nextPreyScanTime = 0f;
+        ResetSubclassStateOnActivation();
 
         if (data == null)
         {
@@ -66,11 +81,14 @@ public abstract class Predator : Creature
         StartWandering();
     }
 
+    protected virtual void ResetSubclassStateOnActivation() { }
+
     private void OnDisable()
     {
         StopWandering();
         CurrentPrey = null;
         nearbyPrey.Clear();
+        ResetPlayerChaseRamp();
         preyOutsideDetectionTimer = 0f;
         ReleaseMotor();
     }
@@ -96,6 +114,15 @@ public abstract class Predator : Creature
         if (!IsReadyToMove) return;
 
         PrunePreyCandidates();
+
+        if (CurrentState == State.Chase)
+        {
+            playerChaseElapsed += Time.fixedDeltaTime;
+            if (DistanceToPlayer() > PlayerDetectionRange)
+                playerOutsideDetectionTimer += Time.fixedDeltaTime;
+            else
+                playerOutsideDetectionTimer = 0f;
+        }
 
         // Poll every non-player state because visibility and Fox's reacquire cooldown
         // can change while the player remains inside the same trigger. The player is
@@ -138,7 +165,7 @@ public abstract class Predator : Creature
             StopMoving(CreatureMovementStyle.Chase);
             Attack();
         }
-        else if (distance > data.detectionRange)
+        else if (ShouldAbandonPlayerChase(distance))
         {
             BeginSearch();
         }
@@ -184,9 +211,13 @@ public abstract class Predator : Creature
 
     private void PursuePlayer()
     {
+        float rampedSpeed = Mathf.Min(
+            playerChaseTopSpeed,
+            playerChaseStartSpeed + playerChaseAcceleration * playerChaseElapsed);
+
         MoveTowards(
             player.position,
-            CalculateMovingTargetApproachSpeed(player),
+            CalculateMovingTargetApproachSpeed(player, rampedSpeed),
             CreatureMovementStyle.Chase,
             data.attackRange * MovingTargetStopRangeMultiplier,
             data.attackRange * MovingTargetSlowRangeMultiplier,
@@ -220,7 +251,7 @@ public abstract class Predator : Creature
 
         MoveTowards(
             ClampToWorld(targetPosition, 0.85f),
-            CalculateMovingTargetApproachSpeed(target),
+            CalculateMovingTargetApproachSpeed(target, data.chaseSpeed),
             CreatureMovementStyle.Chase,
             data.attackRange * MovingTargetStopRangeMultiplier,
             data.attackRange * MovingTargetSlowRangeMultiplier,
@@ -231,7 +262,7 @@ public abstract class Predator : Creature
     // target's outward speed plus a small closing margin is the terminal speed, so
     // a moving crab or deer cannot create an arrival-curve standoff just outside
     // attack range. Stationary targets still get a controlled, natural approach.
-    private float CalculateMovingTargetApproachSpeed(Transform target)
+    protected float CalculateMovingTargetApproachSpeed(Transform target, float maximumSpeed)
     {
         if (target == null) return 0f;
 
@@ -239,12 +270,17 @@ public abstract class Predator : Creature
         float distance = toTarget.magnitude;
         float outwardSpeed = 0f;
 
-        Rigidbody2D targetBody = target.GetComponent<Rigidbody2D>();
-        if (targetBody != null && distance > 0.001f)
+        Vector2 targetVelocity = Vector2.zero;
+        if (target == player && playerController != null)
+            targetVelocity = playerController.MovementVelocity;
+        else
+            targetVelocity = target.GetComponent<Rigidbody2D>()?.linearVelocity ?? Vector2.zero;
+
+        if (targetVelocity.sqrMagnitude > 0.0001f && distance > 0.001f)
         {
             outwardSpeed = Mathf.Max(
                 0f,
-                Vector2.Dot(targetBody.linearVelocity, toTarget / distance));
+                Vector2.Dot(targetVelocity, toTarget / distance));
         }
 
         float brakingDistance = Mathf.Max(0f, distance - data.attackRange);
@@ -255,14 +291,14 @@ public abstract class Predator : Creature
             ContactClosingSpeed * ContactClosingSpeed +
             2f * chaseDeceleration * brakingDistance);
 
-        return Mathf.Min(data.chaseSpeed, outwardSpeed + closingSpeed);
+        return Mathf.Min(Mathf.Max(0f, maximumSpeed), outwardSpeed + closingSpeed);
     }
 
     protected virtual void DoSearch()
     {
         searchTimer -= Time.fixedDeltaTime;
 
-        if (!PlayerIsHidden() && DistanceToPlayer() <= data.detectionRange)
+        if (!PlayerIsHidden() && DistanceToPlayer() <= PlayerDetectionRange)
         {
             BeginChase();
             if (CurrentState == State.Chase) return;
@@ -284,7 +320,7 @@ public abstract class Predator : Creature
             }
             else if (Time.time >= searchPauseUntil)
             {
-                float searchRadius = Mathf.Clamp(data.detectionRange * 0.3f, 0.8f, 2.4f);
+                float searchRadius = Mathf.Clamp(PlayerDetectionRange * 0.3f, 0.8f, 2.4f);
                 searchTarget = ClampToWorld(
                     lastKnownPlayerPos + Random.insideUnitCircle * searchRadius,
                     0.85f);
@@ -311,6 +347,7 @@ public abstract class Predator : Creature
         CurrentPrey = null;
         preyOutsideDetectionTimer = 0f;
         lastKnownPlayerPos = player.position;
+        ConfigurePlayerChaseRamp();
         StopWandering();
     }
 
@@ -328,6 +365,7 @@ public abstract class Predator : Creature
     {
         HarmlessAnimal finishedPrey = CurrentPrey;
         CurrentPrey = null;
+        playerOutsideDetectionTimer = 0f;
         preyOutsideDetectionTimer = 0f;
         if (finishedPrey != null)
             nearbyPrey.Remove(finishedPrey);
@@ -345,6 +383,7 @@ public abstract class Predator : Creature
     {
         CurrentState = State.Search;
         CurrentPrey = null;
+        playerOutsideDetectionTimer = 0f;
         preyOutsideDetectionTimer = 0f;
         searchTimer = data.loseInterestTime;
         searchTarget = ClampToWorld(lastKnownPlayerPos, 0.85f);
@@ -428,6 +467,15 @@ public abstract class Predator : Creature
         return CurrentState == State.ChasePrey;
     }
 
+    // Imposters use this during their calm window so EndSearch cannot immediately
+    // replace player pursuit with an animal hunt and postpone the disguise forever.
+    public void DelayPreyHunting(float duration)
+    {
+        nextPreyHuntTime = Mathf.Max(
+            nextPreyHuntTime,
+            Time.time + Mathf.Max(0f, duration));
+    }
+
     private void RefreshPreyCandidates()
     {
         if (Time.time < nextPreyScanTime) return;
@@ -457,7 +505,66 @@ public abstract class Predator : Creature
 
     private bool CanSeePlayer()
     {
-        return player != null && !PlayerIsHidden() && DistanceToPlayer() <= data.detectionRange;
+        return player != null && !PlayerIsHidden() && DistanceToPlayer() <= PlayerDetectionRange;
+    }
+
+    protected bool ShouldAbandonPlayerChase(float distance)
+    {
+        if (distance <= PlayerDetectionRange) return false;
+        return playerOutsideDetectionTimer >= Mathf.Max(0f, data.playerPursuitGraceTime);
+    }
+
+    protected float CurrentPlayerChaseSpeed => Mathf.Min(
+        playerChaseTopSpeed,
+        playerChaseStartSpeed + playerChaseAcceleration * playerChaseElapsed);
+
+    private void ConfigurePlayerChaseRamp()
+    {
+        ResetPlayerChaseRamp();
+
+        if (data.playerCatchUpTime <= 0f || rb == null || player == null)
+        {
+            playerChaseStartSpeed = data.chaseSpeed;
+            playerChaseTopSpeed = data.chaseSpeed;
+            return;
+        }
+
+        Vector2 towardPlayer = (Vector2)player.position - rb.position;
+        float distance = towardPlayer.magnitude;
+        float forwardSpeed = 0f;
+        if (distance > 0.001f)
+        {
+            forwardSpeed = Mathf.Max(
+                0f,
+                Vector2.Dot(rb.linearVelocity, towardPlayer / distance));
+        }
+
+        float playerSprintSpeed = playerController != null
+            ? playerController.moveSpeed * Mathf.Max(1f, playerController.sprintMultiplier)
+            : data.chaseSpeed;
+        float catchUpTime = Mathf.Max(0.1f, data.playerCatchUpTime);
+        float gapToClose = Mathf.Max(0f, distance - data.attackRange);
+
+        // For a linear speed ramp, this acceleration closes the initial gap at the
+        // configured time even when the crab immediately sprints straight away.
+        float requiredAcceleration = 2f *
+            (gapToClose + (playerSprintSpeed - forwardSpeed) * catchUpTime) /
+            (catchUpTime * catchUpTime);
+
+        playerChaseStartSpeed = forwardSpeed;
+        playerChaseAcceleration = Mathf.Max(0f, requiredAcceleration);
+        float requiredTopSpeed = forwardSpeed + playerChaseAcceleration * catchUpTime;
+        float safetyCap = Mathf.Max(playerSprintSpeed + 0.1f, data.playerChaseSpeedCap);
+        playerChaseTopSpeed = Mathf.Min(requiredTopSpeed, safetyCap);
+    }
+
+    private void ResetPlayerChaseRamp()
+    {
+        playerChaseElapsed = 0f;
+        playerOutsideDetectionTimer = 0f;
+        playerChaseStartSpeed = 0f;
+        playerChaseAcceleration = 0f;
+        playerChaseTopSpeed = 0f;
     }
 
     private void Die()
@@ -511,7 +618,7 @@ public abstract class Predator : Creature
     {
         if (data == null || player == null) return;
         SkipSpawnDelay();
-        BeginChase();
         motor?.RedirectForReveal(this, data, player.position);
+        BeginChase();
     }
 }

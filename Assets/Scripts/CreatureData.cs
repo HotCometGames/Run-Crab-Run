@@ -22,7 +22,7 @@ public class CreatureData : ScriptableObject
     public float moveSpeed = 2.5f;
     [Tooltip("Harmless-animal flee speed.")]
     public float fleeSpeed = 4f;
-    [Tooltip("Predator chase speed.")]
+    [Tooltip("Predator prey-chase speed, and the fallback player-chase speed when Player Catch Up Time is 0.")]
     public float chaseSpeed = 4.5f;
 
     [Header("Natural Steering")]
@@ -58,14 +58,24 @@ public class CreatureData : ScriptableObject
     [Min(0.01f)] public float fleeNoiseFrequency = 0.4f;
 
     [Header("Detection")]
-    [Tooltip("Radius at which this creature reacts to the player or to predators (should roughly match the DetectionZone collider radius).")]
+    [Tooltip("General awareness radius. Harmless animals use it for threats; predators use it for prey. This should roughly match the DetectionZone collider radius.")]
     public float detectionRange = 5f;
+    [Tooltip("Optional player-only awareness radius for predators. Set to 0 to reuse Detection Range. This does not change prey/animal identification.")]
+    [Min(0f)] public float playerDetectionRange = 0f;
     [Tooltip("Distance at which a predator's Attack() fires. Keep this close to the body collider so a hit looks fair.")]
     public float attackRange = 0.6f;
     [Tooltip("Time before the predator can damage the player again.")]
     public float attackCooldown = 0.6f;
     [Tooltip("How long a predator keeps searching after losing the player before giving up.")]
     public float loseInterestTime = 3f;
+
+    [Header("Predator Player Chase")]
+    [Tooltip("Approximate seconds of uninterrupted pursuit needed to catch a continuously sprinting player. Set to 0 to use the fixed Chase Speed instead.")]
+    [Min(0f)] public float playerCatchUpTime = 6.5f;
+    [Tooltip("How long an acquired player may remain outside the identification radius before the predator starts searching.")]
+    [Min(0f)] public float playerPursuitGraceTime = 7.5f;
+    [Tooltip("Safety cap for the player-only catch-up speed calculated at the start of a chase.")]
+    [Min(0.1f)] public float playerChaseSpeedCap = 13f;
 
     [Header("Wander")]
     public float wanderRadius = 6f;
@@ -112,4 +122,7 @@ public class CreatureData : ScriptableObject
     [Tooltip("Hunger level (0-1) at which a friendly animal starts seeking food.")]
     [Range(0f, 1f)]
     public float hungerSeekThreshold = 0.3f;
+
+    public float EffectivePlayerDetectionRange =>
+        playerDetectionRange > 0f ? playerDetectionRange : detectionRange;
 }

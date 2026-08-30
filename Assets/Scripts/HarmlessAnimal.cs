@@ -1,18 +1,28 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-// Harmless animals wander, react to nearby creatures, and seek food when hungry.
-// They never attack the player. Real predators and revealed imposters both use the
-// Predator tag, so the same flee path handles either threat.
+// Harmless animals wander, react to nearby creatures, seek food when hungry, and
+// periodically visit water. Unrevealed imposters run this exact same behaviour, so
+// following an animal to water is useful without becoming a reliable safety test.
 public class HarmlessAnimal : Creature
 {
-    public enum State { Wander, SeekFood, Flee, Eat }
+    public enum State { Wander, SeekFood, SeekWater, Flee, Eat, Drink }
     public State CurrentState { get; private set; } = State.Wander;
     public bool IsAlive { get; private set; } = true;
 
-    [Header("Food Detection")]
+    [Header("Resource Detection")]
     [Tooltip("How far to scan for food nodes.")]
     public float foodSearchRadius = 8f;
+    [Tooltip("How far to scan for a stream or other water node.")]
+    public float waterSearchRadius = 15f;
+
+    [Header("Water Guidance")]
+    [Tooltip("Random delay range before this animal's first trip to water.")]
+    public Vector2 firstDrinkDelayRange = new Vector2(4f, 10f);
+    [Tooltip("Random delay range between later trips to water.")]
+    public Vector2 drinkIntervalRange = new Vector2(25f, 45f);
+    [Tooltip("How long the animal visibly pauses at the water.")]
+    [Min(0.1f)] public float drinkDuration = 2f;
 
     private Transform fleeingFrom;
     private Transform playerAvoidanceTarget;
@@ -21,23 +31,35 @@ public class HarmlessAnimal : Creature
     private float fleeNoiseOffset;
 
     private float hunger;
-    private float eatTimer;
-    private ResourceNode targetFood;
-    private Coroutine foodSeekRoutine;
+    private ResourceNode targetResource;
+    private Collider2D targetResourceCollider;
+    private Coroutine resourceSeekRoutine;
+    private float resourceActionTimer;
     private float nextFoodSearchTime;
+    private float nextWaterSearchTime;
+    private float nextDrinkTime;
 
-    private const float FoodSearchRetryDelay = 2f;
+    private const float ResourceSearchRetryDelay = 2f;
+    private const float FoodArrivalDistance = 0.5f;
+    private const float WaterArrivalDistance = 0.6f;
+    private const float ResourceNoProgressTimeout = 1.5f;
+    private const float ResourceProgressDistance = 0.01f;
 
     private void OnEnable()
     {
+        RebaseWanderOrigin();
         IsAlive = true;
         CurrentState = State.Wander;
         fleeingFrom = null;
         playerAvoidanceTarget = null;
         predatorThreats.Clear();
-        targetFood = null;
-        foodSeekRoutine = null;
+        targetResource = null;
+        targetResourceCollider = null;
+        resourceSeekRoutine = null;
+        resourceActionTimer = 0f;
         nextFoodSearchTime = 0f;
+        nextWaterSearchTime = 0f;
+        ScheduleNextDrink(true);
         fleeNoiseOffset = Random.Range(0f, 1000f);
 
         if (data != null)
@@ -50,14 +72,15 @@ public class HarmlessAnimal : Creature
     {
         StopWandering();
 
-        if (foodSeekRoutine != null)
-            StopCoroutine(foodSeekRoutine);
+        if (resourceSeekRoutine != null)
+            StopCoroutine(resourceSeekRoutine);
 
-        foodSeekRoutine = null;
+        resourceSeekRoutine = null;
         fleeingFrom = null;
         playerAvoidanceTarget = null;
         predatorThreats.Clear();
-        targetFood = null;
+        targetResource = null;
+        targetResourceCollider = null;
         ReleaseMotor();
     }
 
@@ -87,16 +110,30 @@ public class HarmlessAnimal : Creature
                 {
                     BeginSeekingFood();
                 }
+
+                if (CurrentState == State.Wander &&
+                    Time.time >= nextDrinkTime &&
+                    Time.time >= nextWaterSearchTime)
+                {
+                    BeginSeekingWater();
+                }
                 break;
 
             case State.SeekFood:
-                // MoveToFood owns movement while this state is active.
+            case State.SeekWater:
+                // MoveToResource owns movement while either state is active.
                 break;
 
             case State.Eat:
-                eatTimer -= Time.deltaTime;
-                if (eatTimer <= 0f)
+                resourceActionTimer -= Time.deltaTime;
+                if (resourceActionTimer <= 0f)
                     FinishEating();
+                break;
+
+            case State.Drink:
+                resourceActionTimer -= Time.deltaTime;
+                if (resourceActionTimer <= 0f)
+                    FinishDrinking();
                 break;
 
             case State.Flee:
@@ -162,96 +199,217 @@ public class HarmlessAnimal : Creature
 
     private void BeginSeekingFood()
     {
-        ResourceNode nearest = FindNearestFood();
-        if (nearest == null)
+        if (!TryFindNearestResource(
+            ResourceNode.ResourceType.Food,
+            foodSearchRadius,
+            out ResourceNode nearest,
+            out Collider2D nearestCollider))
         {
-            nextFoodSearchTime = Time.time + FoodSearchRetryDelay;
+            nextFoodSearchTime = Time.time + ResourceSearchRetryDelay;
             return;
         }
 
-        targetFood = nearest;
-        CurrentState = State.SeekFood;
-        StopWandering();
-        foodSeekRoutine = StartCoroutine(MoveToFood());
+        BeginSeekingResource(nearest, nearestCollider, State.SeekFood);
     }
 
-    private System.Collections.IEnumerator MoveToFood()
+    private void BeginSeekingWater()
     {
-        while (targetFood != null && CurrentState == State.SeekFood)
+        if (!TryFindNearestResource(
+            ResourceNode.ResourceType.Water,
+            waterSearchRadius,
+            out ResourceNode nearest,
+            out Collider2D nearestCollider))
         {
-            float distance = Vector2.Distance(rb.position, targetFood.transform.position);
-            if (distance < 0.5f)
+            nextDrinkTime = Time.time + ResourceSearchRetryDelay;
+            nextWaterSearchTime = nextDrinkTime;
+            return;
+        }
+
+        BeginSeekingResource(nearest, nearestCollider, State.SeekWater);
+    }
+
+    private void BeginSeekingResource(
+        ResourceNode resource,
+        Collider2D resourceCollider,
+        State seekingState)
+    {
+        targetResource = resource;
+        targetResourceCollider = resourceCollider;
+        CurrentState = seekingState;
+        StopWandering();
+        resourceSeekRoutine = StartCoroutine(MoveToResource(seekingState));
+    }
+
+    private System.Collections.IEnumerator MoveToResource(State seekingState)
+    {
+        bool seekingWater = seekingState == State.SeekWater;
+        float arrivalDistance = seekingWater ? WaterArrivalDistance : FoodArrivalDistance;
+        CreatureMovementStyle movementStyle = seekingWater
+            ? CreatureMovementStyle.SeekWater
+            : CreatureMovementStyle.SeekFood;
+        float startingDistance = Vector2.Distance(
+            rb.position,
+            GetClosestResourcePoint(rb.position));
+        float estimatedTravelTime = startingDistance / Mathf.Max(data.moveSpeed, 0.1f);
+        float travelDeadline = Time.time + Mathf.Clamp(estimatedTravelTime * 2f + 2f, 3f, 18f);
+        Vector2 lastProgressPosition = rb.position;
+        float noProgressTimer = 0f;
+
+        while (targetResource != null && CurrentState == seekingState)
+        {
+            if (Time.time >= travelDeadline) break;
+
+            Vector2 targetPosition = GetClosestResourcePoint(rb.position);
+            float distance = Vector2.Distance(rb.position, targetPosition);
+            if (distance <= arrivalDistance)
             {
-                foodSeekRoutine = null;
-                StartEating();
+                resourceSeekRoutine = null;
+                if (seekingWater)
+                    StartDrinking();
+                else
+                    StartEating();
                 yield break;
             }
 
             MoveTowards(
-                targetFood.transform.position,
+                targetPosition,
                 data.moveSpeed,
-                CreatureMovementStyle.SeekFood,
-                0.45f,
+                movementStyle,
+                Mathf.Max(0.05f, arrivalDistance - 0.05f),
                 data.arrivalSlowRadius);
             yield return FixedUpdateYield;
-        }
 
-        foodSeekRoutine = null;
-        targetFood = null;
-
-        if (CurrentState == State.SeekFood)
-        {
-            CurrentState = State.Wander;
-            nextFoodSearchTime = Time.time + FoodSearchRetryDelay;
-            StartWandering();
-        }
-    }
-
-    private ResourceNode FindNearestFood()
-    {
-        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, foodSearchRadius);
-        ResourceNode nearest = null;
-        float nearestDistance = Mathf.Infinity;
-
-        foreach (Collider2D hit in hits)
-        {
-            ResourceNode node = hit.GetComponent<ResourceNode>();
-            if (node == null || node.type != ResourceNode.ResourceType.Food) continue;
-
-            float distance = Vector2.Distance(transform.position, node.transform.position);
-            if (distance < nearestDistance)
+            if (Vector2.Distance(rb.position, lastProgressPosition) >= ResourceProgressDistance)
             {
-                nearestDistance = distance;
-                nearest = node;
+                lastProgressPosition = rb.position;
+                noProgressTimer = 0f;
+            }
+            else
+            {
+                noProgressTimer += Time.fixedDeltaTime;
+                if (noProgressTimer >= ResourceNoProgressTimeout) break;
             }
         }
 
-        return nearest;
+        resourceSeekRoutine = null;
+        targetResource = null;
+        targetResourceCollider = null;
+
+        if (CurrentState != seekingState) yield break;
+
+        CurrentState = State.Wander;
+        if (seekingWater)
+        {
+            nextWaterSearchTime = Time.time + ResourceSearchRetryDelay;
+            nextDrinkTime = nextWaterSearchTime;
+        }
+        else
+        {
+            nextFoodSearchTime = Time.time + ResourceSearchRetryDelay;
+        }
+        StartWandering();
+    }
+
+    private bool TryFindNearestResource(
+        ResourceNode.ResourceType resourceType,
+        float searchRadius,
+        out ResourceNode nearest,
+        out Collider2D nearestCollider)
+    {
+        ResourceNode[] resources = FindObjectsByType<ResourceNode>();
+        nearest = null;
+        nearestCollider = null;
+        float nearestSqrDistance = Mathf.Max(0f, searchRadius);
+        nearestSqrDistance *= nearestSqrDistance;
+
+        foreach (ResourceNode node in resources)
+        {
+            if (node == null || node.type != resourceType || !node.gameObject.activeInHierarchy)
+                continue;
+
+            Collider2D resourceCollider = node.GetComponent<Collider2D>();
+            if (resourceCollider != null && !resourceCollider.enabled)
+                continue;
+
+            Vector2 targetPoint = resourceCollider != null
+                ? resourceCollider.ClosestPoint(transform.position)
+                : (Vector2)node.transform.position;
+            float sqrDistance = (targetPoint - (Vector2)transform.position).sqrMagnitude;
+            if (sqrDistance >= nearestSqrDistance) continue;
+
+            nearestSqrDistance = sqrDistance;
+            nearest = node;
+            nearestCollider = resourceCollider;
+        }
+
+        return nearest != null;
+    }
+
+    private Vector2 GetClosestResourcePoint(Vector2 fromPosition)
+    {
+        if (targetResourceCollider != null)
+            return targetResourceCollider.ClosestPoint(fromPosition);
+
+        return targetResource != null
+            ? (Vector2)targetResource.transform.position
+            : fromPosition;
     }
 
     private void StartEating()
     {
         CurrentState = State.Eat;
-        eatTimer = data.eatDuration;
+        resourceActionTimer = data.eatDuration;
         StopMoving(CreatureMovementStyle.SeekFood);
     }
 
     private void FinishEating()
     {
         hunger = Mathf.Min(hunger + data.friendlyHungerOnEat, data.friendlyMaxHunger);
-        targetFood = null;
+        ClearResourceTarget();
         CurrentState = State.Wander;
         StartWandering();
     }
 
-    private void CancelFoodActivity()
+    private void StartDrinking()
     {
-        if (foodSeekRoutine != null)
-            StopCoroutine(foodSeekRoutine);
+        CurrentState = State.Drink;
+        resourceActionTimer = Mathf.Max(0.1f, drinkDuration);
+        StopMoving(CreatureMovementStyle.SeekWater);
+        ParticleManager.Instance?.Play(
+            ParticleManager.ParticleType.WaterSplash,
+            GetClosestResourcePoint(rb.position));
+    }
 
-        foodSeekRoutine = null;
-        targetFood = null;
-        eatTimer = 0f;
+    private void FinishDrinking()
+    {
+        ClearResourceTarget();
+        ScheduleNextDrink(false);
+        CurrentState = State.Wander;
+        StartWandering();
+    }
+
+    private void ScheduleNextDrink(bool firstVisit)
+    {
+        Vector2 range = firstVisit ? firstDrinkDelayRange : drinkIntervalRange;
+        float minimum = Mathf.Max(0.1f, Mathf.Min(range.x, range.y));
+        float maximum = Mathf.Max(minimum, Mathf.Max(range.x, range.y));
+        nextDrinkTime = Time.time + Random.Range(minimum, maximum);
+    }
+
+    private void CancelResourceActivity()
+    {
+        if (resourceSeekRoutine != null)
+            StopCoroutine(resourceSeekRoutine);
+
+        resourceSeekRoutine = null;
+        ClearResourceTarget();
+    }
+
+    private void ClearResourceTarget()
+    {
+        targetResource = null;
+        targetResourceCollider = null;
+        resourceActionTimer = 0f;
     }
 
     // ImposterComponent uses this when its tag changes while already overlapping an
@@ -268,7 +426,7 @@ public class HarmlessAnimal : Creature
         Transform threat = SelectPriorityThreat();
         if (threat == null) return;
 
-        CancelFoodActivity();
+        CancelResourceActivity();
         fleeingFrom = threat;
         fleeUntil = Mathf.Max(fleeUntil, Time.time + Mathf.Max(0f, minimumDuration));
         CurrentState = State.Flee;

@@ -5,7 +5,7 @@ using UnityEngine;
 // it gets there. Keeping locomotion in one place prevents wander, flee, and chase from
 // snapping the Rigidbody in different ways, and lets an imposter keep its momentum
 // when its harmless behaviour is swapped for its hidden predator behaviour.
-public enum CreatureMovementStyle { Wander, Flee, Chase, Search, SeekFood }
+public enum CreatureMovementStyle { Wander, Flee, Chase, Search, SeekFood, SeekWater }
 
 [DefaultExecutionOrder(100)]
 [DisallowMultipleComponent]
@@ -376,6 +376,7 @@ public sealed class CreatureMotor2D : MonoBehaviour
                 acceleration = 0.85f; deceleration = 1.1f; turn = 0.85f; separation = 0.7f; avoidance = 1f;
                 break;
             case CreatureMovementStyle.SeekFood:
+            case CreatureMovementStyle.SeekWater:
                 acceleration = 0.8f; deceleration = 1f; turn = 0.8f; separation = 0.8f; avoidance = 1f;
                 break;
             default:

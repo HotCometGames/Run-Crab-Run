@@ -4,11 +4,11 @@ using UnityEngine;
 // with different Inspector values — a Stream is just a Water node with Uses = 0 (infinite).
 //
 // UNITY SETUP:
-//   - Berry Bush prefab: Type = Food, Restore Amount = 30, Uses = 3, Regen Rate = 0.1
-//     (depletes after 3 eats, bush stays visible, regenerates 1 use every ~10 seconds).
+//   - Berry Bush prefab: Type = Food, Restore Amount = 30, Uses = 1,
+//     Regen Rate = 0.0222 (one eat empties it; it refills after ~45 seconds).
 //   - Fruit prefab: Type = Food, Restore Amount = 15, Uses = 1, Regen Rate = 0.05
 //     (single use, regenerates slowly).
-//   - Stream prefab: Type = Water, Restore Amount = 0, Uses = 0, Water Regen Per Second = 5
+//   - Stream prefab: Type = Water, Restore Amount = 0, Uses = 0, Water Regen Per Second = 15
 //     (infinite uses, gradually replenishes thirst while player stands in it).
 //   Add a Collider2D (Is Trigger) to each prefab sized around the interactable area.
 //   Food auto-consumes on overlap (no button press). Water replenishes continuously while
@@ -25,14 +25,17 @@ public class ResourceNode : MonoBehaviour
     public int uses = 0;
 
     [Header("Food Regeneration")]
-    [Tooltip("How many uses to regenerate per second when depleted. 0.1 = 1 use every 10 seconds.")]
-    public float regenRate = 0.1f;
+    [Tooltip("How many uses to regenerate per second when depleted. 0.0222 = 1 use every 45 seconds.")]
+    [Min(0f)] public float regenRate = 0.0222222f;
 
     [Header("Water (Continuous Regen)")]
     [Tooltip("Thirst restored per second while the player stands in this water source.")]
-    public float waterRegenPerSecond = 5f;
+    public float waterRegenPerSecond = 15f;
 
     [Header("Feedback")]
+    [Tooltip("Available and depleted sprites are paired by index. One pair is chosen per food node when it spawns.")]
+    [SerializeField] private Sprite[] fullFoodSprites = new Sprite[0];
+    [SerializeField] private Sprite[] depletedFoodSprites = new Sprite[0];
     [SerializeField] private Color depletedTint = new Color(0.45f, 0.45f, 0.45f, 0.65f);
     [SerializeField] private AudioClip interactionSound;
 
@@ -44,6 +47,8 @@ public class ResourceNode : MonoBehaviour
     private PlayerSurvival playerSurvival;
     private SpriteRenderer spriteRenderer;
     private Color availableTint = Color.white;
+    private Sprite selectedFullSprite;
+    private Sprite selectedDepletedSprite;
 
     private void Awake()
     {
@@ -51,6 +56,7 @@ public class ResourceNode : MonoBehaviour
         usesLeft = uses;
         spriteRenderer = GetComponent<SpriteRenderer>();
         if (spriteRenderer != null) availableTint = spriteRenderer.color;
+        SelectFoodSpritePair();
         UpdateVisualState();
     }
 
@@ -62,9 +68,12 @@ public class ResourceNode : MonoBehaviour
             if (regenAccumulator >= 1f)
             {
                 int previousUses = usesLeft;
-                int toRestore = Mathf.FloorToInt(regenAccumulator);
-                usesLeft = Mathf.Min(usesLeft + toRestore, maxUses);
+                int toRestore = Mathf.Min(
+                    Mathf.FloorToInt(regenAccumulator),
+                    maxUses - usesLeft);
+                usesLeft += toRestore;
                 regenAccumulator -= toRestore;
+                if (usesLeft >= maxUses) regenAccumulator = 0f;
                 if (usesLeft != previousUses) UpdateVisualState();
             }
         }
@@ -111,12 +120,12 @@ public class ResourceNode : MonoBehaviour
             playerInWater = true;
             playerCollider = other;
             playerSurvival = other.GetComponent<PlayerSurvival>();
-            if (playerSurvival != null && playerSurvival.thirst < playerSurvival.maxThirst)
-            {
-                ParticleManager.Instance?.Play(ParticleManager.ParticleType.WaterSplash, other.transform.position);
-                if (interactionSound != null)
-                    SoundManager.Instance?.PlaySound(interactionSound, other.transform, 0.6f);
-            }
+
+            ParticleManager.Instance?.Play(ParticleManager.ParticleType.WaterSplash, other.transform.position);
+            if (playerSurvival != null &&
+                playerSurvival.thirst < playerSurvival.maxThirst &&
+                interactionSound != null)
+                SoundManager.Instance?.PlaySound(interactionSound, other.transform, 0.6f);
         }
     }
 
@@ -135,6 +144,36 @@ public class ResourceNode : MonoBehaviour
     private void UpdateVisualState()
     {
         if (spriteRenderer == null || type != ResourceType.Food || maxUses <= 0) return;
-        spriteRenderer.color = usesLeft > 0 ? availableTint : depletedTint;
+
+        bool isAvailable = usesLeft > 0;
+        Sprite stateSprite = isAvailable ? selectedFullSprite : selectedDepletedSprite;
+        if (stateSprite != null)
+        {
+            spriteRenderer.sprite = stateSprite;
+            spriteRenderer.color = availableTint;
+            return;
+        }
+
+        spriteRenderer.color = isAvailable ? availableTint : depletedTint;
+    }
+
+    private void SelectFoodSpritePair()
+    {
+        if (spriteRenderer == null || type != ResourceType.Food) return;
+        if (fullFoodSprites == null || depletedFoodSprites == null) return;
+
+        int pairCount = Mathf.Min(fullFoodSprites.Length, depletedFoodSprites.Length);
+        if (pairCount <= 0) return;
+
+        int startIndex = Random.Range(0, pairCount);
+        for (int offset = 0; offset < pairCount; offset++)
+        {
+            int index = (startIndex + offset) % pairCount;
+            if (fullFoodSprites[index] == null || depletedFoodSprites[index] == null) continue;
+
+            selectedFullSprite = fullFoodSprites[index];
+            selectedDepletedSprite = depletedFoodSprites[index];
+            return;
+        }
     }
 }

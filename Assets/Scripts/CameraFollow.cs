@@ -40,8 +40,8 @@ public class CameraFollow : MonoBehaviour
             return;
         }
 
-        // Keep the camera's starting offset
-        offset = transform.position - player.position;
+        // Center the player while preserving the camera's depth.
+        offset = new Vector3(0f, 0f, transform.position.z - player.position.z);
     }
 
     private void LateUpdate()

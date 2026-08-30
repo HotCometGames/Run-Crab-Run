@@ -6,15 +6,22 @@ using UnityEngine;
 //
 // UNITY SETUP:
 //   Fox prefab -> add this script -> assign a "Data_Fox" CreatureData asset, e.g.:
-//     moveSpeed 2.8, chaseSpeed 5.5, detectionRange 6, attackRange 0.5, loseInterestTime 2
-//   Optionally tune "Max Chase Duration" in the Inspector (defaults to 4 seconds).
+//     moveSpeed 2.8, chaseSpeed 5.5, detectionRange 6, attackRange 1.1,
+//     loseInterestTime 2, playerCatchUpTime 6.5
+//   Optionally tune "Max Chase Duration" in the Inspector (defaults to 8.5 seconds).
 public class Fox : Predator
 {
-    [Tooltip("Max continuous chase time before the fox breaks off, even if it hasn't lost the player.")]
-    public float maxChaseDuration = 4f;
+    [Tooltip("Max continuous chase time before the fox breaks off. The configured player catch-up window takes precedence when it is longer. Set to 0 to disable this limit.")]
+    public float maxChaseDuration = 8.5f;
 
     private float chaseClock;
     private float reacquirePlayerAt;
+
+    protected override void ResetSubclassStateOnActivation()
+    {
+        chaseClock = 0f;
+        reacquirePlayerAt = 0f;
+    }
 
     protected override void BeginChase()
     {
@@ -28,7 +35,11 @@ public class Fox : Predator
     protected override void DoChase()
     {
         chaseClock += Time.fixedDeltaTime;
-        if (maxChaseDuration > 0f && chaseClock >= maxChaseDuration)
+        float effectiveChaseDuration = maxChaseDuration;
+        if (effectiveChaseDuration > 0f && data != null && data.playerCatchUpTime > 0f)
+            effectiveChaseDuration = Mathf.Max(effectiveChaseDuration, data.playerCatchUpTime + 1f);
+
+        if (effectiveChaseDuration > 0f && chaseClock >= effectiveChaseDuration)
         {
             float breakDuration = data != null ? Mathf.Max(0.25f, data.loseInterestTime) : 1f;
             reacquirePlayerAt = Time.time + breakDuration;

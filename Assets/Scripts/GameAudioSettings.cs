@@ -7,9 +7,10 @@ public static class GameAudioSettings
 {
     private const string MusicVolumeKey = "RunCrabRun_MusicVolume";
     private const string EffectsVolumeKey = "RunCrabRun_EffectsVolume";
+    private const float DefaultVolume = 0.4f;
 
-    public static float MusicVolume => PlayerPrefs.GetFloat(MusicVolumeKey, 0.8f);
-    public static float EffectsVolume => PlayerPrefs.GetFloat(EffectsVolumeKey, 0.8f);
+    public static float MusicVolume => PlayerPrefs.GetFloat(MusicVolumeKey, DefaultVolume);
+    public static float EffectsVolume => PlayerPrefs.GetFloat(EffectsVolumeKey, DefaultVolume);
 
     public static void SetMusicVolume(float value)
     {

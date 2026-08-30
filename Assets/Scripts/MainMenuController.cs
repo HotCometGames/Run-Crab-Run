@@ -164,11 +164,12 @@ public class MainMenuController : MonoBehaviour
 
         Transform survival = CreateSection(content, "Survival Section", "SURVIVAL");
         AddParagraph(survival, "Find berries to restore hunger.");
-        AddParagraph(survival, "Stand in the stream or at wells to restore thirst.");
+        AddParagraph(survival, "Stand in the stream to restore thirst.");
+        AddParagraph(survival, "Animals seek water. Following one may save you—but getting close may expose an Imposter.");
         AddParagraph(survival, "Hide in bushes to escape ground predators.");
 
         Transform danger = CreateSection(content, "Danger Section", "DANGER");
-        AddParagraph(danger, "Deer and sheep may look harmless, but any one of them could be an Imposter.");
+        AddParagraph(danger, "Deer and sheep may look harmless, but any one of them could be an Imposter. Escape for long enough and it may disguise itself again.");
         AddParagraph(danger, "You cannot fight—run, hide, and survive.");
         CreateBackChoice(howToPlayPage.transform, ShowMain);
     }
@@ -201,6 +202,7 @@ public class MainMenuController : MonoBehaviour
         AddCredit(content, "UI & Level Design", "Emily");
         AddCredit(content, "Creature AI", "Rener");
         AddCredit(content, "Systems & Polish", "Caleb");
+        AddCredit(content, "Heartbeat Sound", "Soundious");
         CreateBackChoice(creditsPage.transform, ShowMain);
     }
 

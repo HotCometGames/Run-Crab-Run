@@ -15,6 +15,13 @@ public class ParticleManager : MonoBehaviour
 {
     public static ParticleManager Instance { get; private set; }
 
+    // Dominant painted fill sampled from the river in map background.png (#8CCCFA).
+    private static readonly Color RiverWaterColor = new Color(
+        140f / 255f,
+        204f / 255f,
+        250f / 255f,
+        1f);
+
     public AudioClip PoofSound;
 
     public enum ParticleType
@@ -60,7 +67,7 @@ public class ParticleManager : MonoBehaviour
         if (Instance == this) Instance = null;
     }
 
-    public void Play(ParticleType type, Vector3 position)
+    public void Play(ParticleType type, Vector3 position, bool playPoofSound = false)
     {
         if (!effectLookup.TryGetValue(type, out var effect) || effect.prefab == null) return;
 
@@ -83,6 +90,9 @@ public class ParticleManager : MonoBehaviour
         {
             var main = particleSystem.main;
             main.useUnscaledTime = type == ParticleType.Death;
+            if (type == ParticleType.WaterSplash)
+                ApplyWaterSplashStyle(particleSystem);
+
             particleSystem.Clear(true);
             particleSystem.Play(true);
         }
@@ -93,8 +103,38 @@ public class ParticleManager : MonoBehaviour
 
         StartCoroutine(ReturnToPool(type, obj, duration));
 
-        if (PoofSound != null && (type == ParticleType.SpawnPoof || type == ParticleType.Death))
+        if (playPoofSound && PoofSound != null)
             SoundManager.Instance?.PlaySound(PoofSound, position, 0.75f);
+    }
+
+    private static void ApplyWaterSplashStyle(ParticleSystem particleSystem)
+    {
+        var main = particleSystem.main;
+        main.startColor = RiverWaterColor;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.3f, 0.55f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.6f, 1.2f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.18f);
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+        var fade = particleSystem.colorOverLifetime;
+        fade.enabled = true;
+        Gradient alphaFade = new Gradient();
+        alphaFade.SetKeys(
+            new[]
+            {
+                new GradientColorKey(Color.white, 0f),
+                new GradientColorKey(Color.white, 1f)
+            },
+            new[]
+            {
+                new GradientAlphaKey(0.95f, 0f),
+                new GradientAlphaKey(0f, 1f)
+            });
+        fade.color = alphaFade;
+
+        ParticleSystemRenderer particleRenderer = particleSystem.GetComponent<ParticleSystemRenderer>();
+        if (particleRenderer != null)
+            particleRenderer.sortingOrder = 2;
     }
 
     private float GetParticleDuration(GameObject obj)

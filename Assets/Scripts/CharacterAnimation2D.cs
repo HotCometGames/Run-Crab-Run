@@ -30,6 +30,8 @@ public sealed class CharacterAnimation2D : MonoBehaviour
     public bool ControlsVisualFacing =>
         rotateVisualToMovement && visualRoot != null && visualRoot != transform;
 
+    public CharacterAnimationSet CurrentAnimationSet => animationSet;
+
     private void Awake() => ResolveReferences();
 
     private void OnEnable()

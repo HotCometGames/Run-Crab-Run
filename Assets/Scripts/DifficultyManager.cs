@@ -1,8 +1,8 @@
 using UnityEngine;
 
-// Design doc section 19: don't make the map harder, make the THREAT DENSITY increase
-// over time (0-2min / 2-5min / 5-10min / 10+min tiers). SpawnManager reads CurrentTier
-// each time it spawns something.
+// Design doc section 19: don't make the map harder, make the uncertainty increase
+// over time (0-2min / 2-5min / 5-10min / 10+min tiers). SpawnManager reads
+// CurrentTier for batch timing, animal count, and Imposter chance.
 //
 // UNITY SETUP:
 //   Add this to the same "GameManager" GameObject (or its own empty GameObject).
@@ -28,24 +28,26 @@ public class DifficultyManager : MonoBehaviour
         public float spawnInterval;
         [Range(0f, 1f), Tooltip("Chance a spawned harmless animal is secretly an imposter.")]
         public float imposterChance;
-        [Tooltip("Minimum predators per batch.")]
+        // Retained as hidden serialized fields so older scenes migrate safely.
+        // SpawnManager no longer creates standalone predators or reads these values.
+        [HideInInspector]
         public int minPredators;
-        [Tooltip("Maximum predators per batch.")]
+        [HideInInspector]
         public int maxPredators;
         [Tooltip("Minimum harmless animals per batch.")]
         public int minFriendlies;
         [Tooltip("Maximum harmless animals per batch.")]
         public int maxFriendlies;
-        [Tooltip("Which predator difficulty levels are allowed to spawn in this tier.")]
+        [HideInInspector]
         public PredatorDifficulty allowedPredatorDifficulties;
     }
 
     public Tier[] tiers = new Tier[]
     {
-        new Tier { startTime = 0f,   spawnInterval = 12f, imposterChance = 0.10f, minPredators = 0, maxPredators = 1, minFriendlies = 1, maxFriendlies = 2, allowedPredatorDifficulties = PredatorDifficulty.Easy }, // 0-2 min
-        new Tier { startTime = 120f, spawnInterval = 9f,  imposterChance = 0.20f, minPredators = 1, maxPredators = 2, minFriendlies = 2, maxFriendlies = 3, allowedPredatorDifficulties = PredatorDifficulty.Easy | PredatorDifficulty.Medium }, // 2-5 min
-        new Tier { startTime = 300f, spawnInterval = 6f,  imposterChance = 0.30f, minPredators = 1, maxPredators = 3, minFriendlies = 2, maxFriendlies = 4, allowedPredatorDifficulties = PredatorDifficulty.Easy | PredatorDifficulty.Medium | PredatorDifficulty.Hard }, // 5-10 min
-        new Tier { startTime = 600f, spawnInterval = 4f,  imposterChance = 0.40f, minPredators = 2, maxPredators = 4, minFriendlies = 3, maxFriendlies = 5, allowedPredatorDifficulties = PredatorDifficulty.Medium | PredatorDifficulty.Hard }, // 10+ min
+        new Tier { startTime = 0f,   spawnInterval = 12f, imposterChance = 0.25f, minPredators = 0, maxPredators = 0, minFriendlies = 1, maxFriendlies = 2, allowedPredatorDifficulties = PredatorDifficulty.All }, // 0-2 min
+        new Tier { startTime = 120f, spawnInterval = 9f,  imposterChance = 0.35f, minPredators = 0, maxPredators = 0, minFriendlies = 2, maxFriendlies = 3, allowedPredatorDifficulties = PredatorDifficulty.All }, // 2-5 min
+        new Tier { startTime = 300f, spawnInterval = 6f,  imposterChance = 0.45f, minPredators = 0, maxPredators = 0, minFriendlies = 2, maxFriendlies = 4, allowedPredatorDifficulties = PredatorDifficulty.All }, // 5-10 min
+        new Tier { startTime = 600f, spawnInterval = 4f,  imposterChance = 0.50f, minPredators = 0, maxPredators = 0, minFriendlies = 3, maxFriendlies = 5, allowedPredatorDifficulties = PredatorDifficulty.All }, // 10+ min
     };
 
     public Tier CurrentTier { get; private set; }

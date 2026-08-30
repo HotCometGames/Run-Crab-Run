@@ -52,10 +52,8 @@ public abstract class Creature : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         motor = GetComponent<CreatureMotor2D>();
         if (motor == null) motor = gameObject.AddComponent<CreatureMotor2D>();
-        spawnPoint = transform.position;
         spawnTimer = Mathf.Max(0f, spawnDelay);
-        wanderHeading = Random.insideUnitCircle.normalized;
-        if (wanderHeading.sqrMagnitude < 0.0001f) wanderHeading = Vector2.right;
+        RebaseWanderOrigin();
 
         if (data == null)
             Debug.LogError($"{name}: {GetType().Name} requires a CreatureData asset.", this);
@@ -152,6 +150,15 @@ public abstract class Creature : MonoBehaviour
         motor?.Brake(this, data, style);
 
     protected void ReleaseMotor() => motor?.Release(this);
+
+    // Role-swapping creatures should wander around the place where their new role
+    // began instead of trying to return to the location where the prefab spawned.
+    protected void RebaseWanderOrigin()
+    {
+        spawnPoint = rb != null ? rb.position : (Vector2)transform.position;
+        wanderHeading = Random.insideUnitCircle.normalized;
+        if (wanderHeading.sqrMagnitude < 0.0001f) wanderHeading = Vector2.right;
+    }
 
     // Wanders to random points around this creature's spawn location, forever,
     // until a subclass state (Flee / Chase / Search) interrupts it.

@@ -18,7 +18,6 @@ public static class ArtistAnimationSetup
         "Assets/Art/Crab/crab normal.png",
         "Assets/Art/Crab/crab walk 1.png",
         "Assets/Art/Crab/crab walk 2.png",
-        "Assets/Art/Crab/crab dash.png",
         "Assets/Art/Deer Assets/deer normal.PNG",
         "Assets/Art/Deer Assets/deer walk 1.PNG",
         "Assets/Art/Deer Assets/deer walk 2.png",
@@ -63,7 +62,11 @@ public static class ArtistAnimationSetup
                     "Assets/Art/Crab/crab walk 2.png"
                 },
                 Array.Empty<string>(),
-                new[] { "Assets/Art/Crab/crab dash.png" },
+                new[]
+                {
+                    "Assets/Art/Crab/crab walk 1.png",
+                    "Assets/Art/Crab/crab walk 2.png"
+                },
                 -90f,
                 4.5f,
                 5.5f,

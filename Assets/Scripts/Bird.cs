@@ -26,7 +26,7 @@ public class Bird : Predator
             StopMoving(CreatureMovementStyle.Chase);
             Attack();
         }
-        else if (distance > data.detectionRange * 1.6f)
+        else if (ShouldAbandonPlayerChase(distance))
         {
             BeginSearch();
         }
@@ -34,7 +34,7 @@ public class Bird : Predator
         {
             MoveTowards(
                 player.position,
-                data.chaseSpeed,
+                CalculateMovingTargetApproachSpeed(player, CurrentPlayerChaseSpeed),
                 CreatureMovementStyle.Chase,
                 data.attackRange * 0.82f,
                 data.attackRange + data.arrivalSlowRadius);

@@ -81,7 +81,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: 28af5f9fed4db634cae7992aca86f2d1, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 1d2ed93cfa5d8244fb7781454a012711, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -270,7 +270,7 @@ GameObject:
   - component: {fileID: 272865408895030742}
   - component: {fileID: 3951026226189872489}
   m_Layer: 0
-  m_Name: Sheep_Imposter
+  m_Name: Deer_Imposter
   m_TagString: Animal
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -370,7 +370,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cdf0250ae60ddc64ab083a0f6ed45798, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  data: {fileID: 11400000, guid: 34b54668aa48c644b9668e08f0ff17d0, type: 2}
+  data: {fileID: 11400000, guid: d7b00658790b37a45ad966afe107922f, type: 2}
   detectionZone: {fileID: 4726613901767622191}
   spawnDelay: 1
   foodSearchRadius: 8
@@ -387,14 +387,15 @@ MonoBehaviour:
   m_GameObject: {fileID: 7023619878355878992}
   m_Enabled: 0
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 952dc1012a9d1964183daaa1dbd773a9, type: 3}
+  m_Script: {fileID: 11500000, guid: 44d9aa576096d86408adddeefcdb81a1, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  data: {fileID: 11400000, guid: e1abe061f265e1a40a83de9f6b69c6fd, type: 2}
+  data: {fileID: 11400000, guid: 89f53e6fb648f6f4a95d510471e6e05d, type: 2}
   detectionZone: {fileID: 4468719321589105742}
   spawnDelay: 1
   attackTimer: 0
   hunger: 0
+  maxChaseDuration: 8.5
 --- !u!114 &272865408895030742
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -409,8 +410,8 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   hiddenPredator: {fileID: 6326126506573061116}
   revealZone: {fileID: 4042593149132782515}
-  predatorSprite: {fileID: 21300000, guid: 9d8a33b429df741b4adf3f32c038f710, type: 3}
-  predatorAnimationSet: {fileID: 11400000, guid: 047b0bedf780e409491a4420efe652a8, type: 2}
+  predatorSprite: {fileID: 21300000, guid: bc1aecb7ffb8ce44a9983d57dc9ecb5f, type: 3}
+  predatorAnimationSet: {fileID: 11400000, guid: fbdc95fa9823b4a5bb194d8052a6ef40, type: 2}
   onRevealed:
     m_PersistentCalls:
       m_Calls: []
@@ -430,7 +431,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 161e68c94992f405daddde49ad756a81, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::CharacterAnimation2D
-  animationSet: {fileID: 11400000, guid: 8a36d6d9b31eb41aca4ff4afa72716f5, type: 2}
+  animationSet: {fileID: 11400000, guid: a6f350061371b49d198db7cf126e23e0, type: 2}
   targetRenderer: {fileID: 7871752362981322646}
   visualRoot: {fileID: 6426720048238592639}
   movementThreshold: 0.05
@@ -504,7 +505,7 @@ CircleCollider2D:
   m_CompositeOperation: 0
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
-  m_Radius: 8
+  m_Radius: 6
 --- !u!114 &4468719321589105742
 MonoBehaviour:
   m_ObjectHideFlags: 0

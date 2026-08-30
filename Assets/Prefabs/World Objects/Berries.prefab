@@ -78,7 +78,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 2069084819849820986, guid: 71019cb55212e2e4dbed8d7a4fa6fb25, type: 3}
+  m_Sprite: {fileID: 8475445770955531964, guid: 6708616c7e46d40e8b5a8e0f490bc157, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -103,9 +103,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   type: 0
   restoreAmount: 30
-  uses: 3
-  regenRate: 0.1
+  uses: 1
+  regenRate: 0.0222222
   waterRegenPerSecond: 5
+  fullFoodSprites:
+  - {fileID: 8475445770955531964, guid: 6708616c7e46d40e8b5a8e0f490bc157, type: 3}
+  - {fileID: 970101767518866249, guid: bb84b63929df348fda745a649e481e6d, type: 3}
+  depletedFoodSprites:
+  - {fileID: -6447382366076805937, guid: eba5132f8afbf48caacb8f3b8c537b66, type: 3}
+  - {fileID: 5886891629588362822, guid: 6ec0c666098d74f4b89e2d70d359c6de, type: 3}
   depletedTint: {r: 0.45, g: 0.45, b: 0.45, a: 0.65}
   interactionSound: {fileID: 0}
 --- !u!58 &1791344925957904620

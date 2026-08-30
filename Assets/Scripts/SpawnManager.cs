@@ -2,20 +2,19 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
-// Reads DifficultyManager.CurrentTier to decide how often to spawn batches,
-// how many predators and friendly animals per batch, and how likely a
-// spawned harmless animal is secretly an Imposter.
+// Reads DifficultyManager.CurrentTier to decide how often to spawn animal batches,
+// how many animals to add, and how likely each one is secretly an Imposter.
+// Standalone predators are never spawned: every Wolf and Fox begins disguised.
 //
 // UNITY SETUP:
 //   - Add this to the "GameManager" GameObject (or its own "SpawnManager" GameObject).
 //   - Drag your DifficultyManager into the "Difficulty" field.
 //   - Create several empty "SpawnPoint" GameObjects around the edges of your forest
 //     tilemap and drag them all into "Spawn Points".
-//   - Drag your prefabs into the three arrays:
+//   - Drag your prefabs into the two arrays:
 //       Harmless Animal Prefabs -> plain Deer/Sheep (no ImposterComponent)
 //       Imposter Animal Prefabs -> the Sheep_Imposter / Deer_Imposter prefabs from
 //                                   ImposterComponent.cs's setup instructions
-//       Predator Prefabs        -> standalone Wolf/Fox prefabs
 public class SpawnManager : MonoBehaviour
 {
     [Header("References")]
@@ -25,19 +24,20 @@ public class SpawnManager : MonoBehaviour
     [Header("Prefabs")]
     public GameObject[] harmlessAnimalPrefabs;
     public GameObject[] imposterAnimalPrefabs;
-    public GameObject[] predatorPrefabs;
 
     [Header("Spawn Limits")]
     [Tooltip("Maximum total creatures alive at once. Batches won't exceed this cap.")]
     public int maxTotalCreatures = 50;
+    [Min(0), Tooltip("Maximum Wolves present, including dormant Wolves inside unrevealed impostors.")]
+    public int maxWolves = 2;
+    [Min(0), Tooltip("Maximum Foxes present, including dormant Foxes inside unrevealed impostors.")]
+    public int maxFoxes = 2;
     [Tooltip("Random offset radius around each spawn point.")]
     public float spawnRadius = 1.5f;
     [Tooltip("Avoid popping new creatures directly beside the player.")]
     public float minSpawnDistanceFromPlayer = 6f;
     [Tooltip("Avoid spawning creatures on top of an animal that is already using the same edge point.")]
     [Min(0f)] public float minSpawnDistanceFromCreatures = 1.35f;
-
-    private const float MinimumFriendlyPopulationFraction = 0.5f;
 
     private void Start()
     {
@@ -68,115 +68,104 @@ public class SpawnManager : MonoBehaviour
 
         CountCreatureGameObjects(
             out int currentCount,
-            out int currentFriendlyCount,
-            out int currentPredatorCount);
+            out int currentWolfCount,
+            out int currentFoxCount);
         int remaining = maxTotalCreatures - currentCount;
         if (remaining <= 0) return;
 
-        int minPredators = Mathf.Max(0, Mathf.Min(tier.minPredators, tier.maxPredators));
-        int maxPredators = Mathf.Max(minPredators, Mathf.Max(tier.minPredators, tier.maxPredators));
         int minFriendlies = Mathf.Max(0, Mathf.Min(tier.minFriendlies, tier.maxFriendlies));
         int maxFriendlies = Mathf.Max(minFriendlies, Mathf.Max(tier.minFriendlies, tier.maxFriendlies));
+        int friendlyCount = Mathf.Min(
+            Random.Range(minFriendlies, maxFriendlies + 1),
+            remaining);
 
-        int wantedPredators = Random.Range(minPredators, maxPredators + 1);
-        int wantedFriendlies = Random.Range(minFriendlies, maxFriendlies + 1);
+        float imposterChance = difficulty != null ? tier.imposterChance : 0.25f;
 
-        // Predation creates empty slots by removing friendlies. If predators always
-        // claim those slots first, a capped scene slowly becomes all predators. Keep
-        // at least half the ecosystem harmless, including still-disguised imposters.
-        int minimumFriendlyPopulation = Mathf.CeilToInt(
-            Mathf.Max(0, maxTotalCreatures) * MinimumFriendlyPopulationFraction);
-        int friendlyDeficit = Mathf.Max(0, minimumFriendlyPopulation - currentFriendlyCount);
-        int predatorCapacity = Mathf.Max(
-            0,
-            maxTotalCreatures - minimumFriendlyPopulation - currentPredatorCount);
-        wantedPredators = Mathf.Min(wantedPredators, predatorCapacity);
-
-        int predatorCount = 0;
-        int friendlyCount = Mathf.Min(wantedFriendlies, Mathf.Min(friendlyDeficit, remaining));
-        wantedFriendlies -= friendlyCount;
-        remaining -= friendlyCount;
-
-        // Randomized allocation avoids favoring either group when only part of the
-        // requested batch fits, after the friendly reserve has been protected.
-        while (remaining > 0 && (wantedPredators > 0 || wantedFriendlies > 0))
-        {
-            bool chooseFriendly = wantedFriendlies > 0 &&
-                (wantedPredators <= 0 || Random.Range(0, wantedPredators + wantedFriendlies) < wantedFriendlies);
-
-            if (chooseFriendly)
-            {
-                friendlyCount++;
-                wantedFriendlies--;
-            }
-            else
-            {
-                predatorCount++;
-                wantedPredators--;
-            }
-
-            remaining--;
-        }
-
-        float imposterChance = difficulty != null ? tier.imposterChance : 0.15f;
-
-        for (int i = 0; i < predatorCount; i++)
-        {
-            GameObject prefab = GetRandomPredator(tier.allowedPredatorDifficulties);
-            if (prefab == null) break;
-            if (!TryChooseSpawnPosition(out Vector3 pos)) continue;
-
-            Instantiate(prefab, pos, Quaternion.identity);
-            ParticleManager.Instance?.Play(ParticleManager.ParticleType.SpawnPoof, pos);
-        }
-
+        // Every slot begins as an animal. An imposter roll may select any configured
+        // disguise whose hidden species still has room under its identity cap.
         for (int i = 0; i < friendlyCount; i++)
         {
-            GameObject prefab;
+            GameObject prefab = null;
 
             if (Random.value < imposterChance && imposterAnimalPrefabs != null && imposterAnimalPrefabs.Length > 0)
             {
-                prefab = imposterAnimalPrefabs[Random.Range(0, imposterAnimalPrefabs.Length)];
+                prefab = GetRandomImposter(currentWolfCount, currentFoxCount);
             }
-            else if (harmlessAnimalPrefabs != null && harmlessAnimalPrefabs.Length > 0)
+
+            // If the roll selected an imposter whose hidden predator species is full,
+            // spawn a genuinely harmless animal instead of exceeding the hard cap.
+            if (prefab == null && harmlessAnimalPrefabs != null && harmlessAnimalPrefabs.Length > 0)
             {
                 prefab = harmlessAnimalPrefabs[Random.Range(0, harmlessAnimalPrefabs.Length)];
             }
-            else
+
+            if (prefab == null)
             {
                 continue;
             }
 
             if (!TryChooseSpawnPosition(out Vector3 pos)) continue;
 
-            Instantiate(prefab, pos, Quaternion.identity);
+            GameObject spawned = Instantiate(prefab, pos, Quaternion.identity);
+            if (spawned == null) continue;
+
+            IncrementSpeciesCounts(prefab, ref currentWolfCount, ref currentFoxCount);
             ParticleManager.Instance?.Play(ParticleManager.ParticleType.SpawnPoof, pos);
         }
     }
 
-    private GameObject GetRandomPredator(PredatorDifficulty allowed)
+    private GameObject GetRandomImposter(
+        int currentWolfCount,
+        int currentFoxCount)
     {
         List<GameObject> valid = new List<GameObject>();
-        if (predatorPrefabs == null) return null;
-        if (allowed == 0) allowed = PredatorDifficulty.All;
+        if (imposterAnimalPrefabs == null) return null;
 
-        foreach (var prefab in predatorPrefabs)
+        foreach (GameObject prefab in imposterAnimalPrefabs)
         {
-            if (prefab == null) continue;
-            var creature = prefab.GetComponent<Creature>();
-            if (creature != null && creature.data != null &&
-                (allowed & (PredatorDifficulty)(1 << (int)creature.data.difficulty)) != 0)
+            if (prefab == null || !HasSpeciesCapacity(prefab, currentWolfCount, currentFoxCount))
+                continue;
+
+            ImposterComponent imposter = prefab.GetComponent<ImposterComponent>();
+            Predator hiddenPredator = imposter != null ? imposter.hiddenPredator : null;
+            if (prefab.GetComponent<HarmlessAnimal>() == null ||
+                hiddenPredator == null ||
+                hiddenPredator.gameObject != prefab ||
+                hiddenPredator.data == null)
             {
-                valid.Add(prefab);
+                continue;
             }
+
+            valid.Add(prefab);
         }
+
         return valid.Count > 0 ? valid[Random.Range(0, valid.Count)] : null;
+    }
+
+    private bool HasSpeciesCapacity(GameObject prefab, int currentWolfCount, int currentFoxCount)
+    {
+        if (prefab.GetComponent<Wolf>() != null && currentWolfCount >= Mathf.Max(0, maxWolves))
+            return false;
+
+        if (prefab.GetComponent<Fox>() != null && currentFoxCount >= Mathf.Max(0, maxFoxes))
+            return false;
+
+        return true;
+    }
+
+    private static void IncrementSpeciesCounts(
+        GameObject prefab,
+        ref int currentWolfCount,
+        ref int currentFoxCount)
+    {
+        if (prefab.GetComponent<Wolf>() != null) currentWolfCount++;
+        if (prefab.GetComponent<Fox>() != null) currentFoxCount++;
     }
 
     private void CountCreatureGameObjects(
         out int total,
-        out int friendlies,
-        out int predators)
+        out int wolves,
+        out int foxes)
     {
         Creature[] creatures = FindObjectsByType<Creature>();
         HashSet<GameObject> gameObjects = new HashSet<GameObject>();
@@ -187,13 +176,15 @@ public class SpawnManager : MonoBehaviour
         }
 
         total = gameObjects.Count;
-        friendlies = 0;
-        predators = 0;
+        wolves = 0;
+        foxes = 0;
 
         foreach (GameObject creatureObject in gameObjects)
         {
-            if (creatureObject.CompareTag("Animal")) friendlies++;
-            else if (creatureObject.CompareTag("Predator")) predators++;
+            // Component identity remains stable through an imposter reveal, unlike
+            // its tag and enabled state, so dormant predators reserve capacity too.
+            if (creatureObject.GetComponent<Wolf>() != null) wolves++;
+            if (creatureObject.GetComponent<Fox>() != null) foxes++;
         }
     }
 

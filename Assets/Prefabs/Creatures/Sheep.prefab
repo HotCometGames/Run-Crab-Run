@@ -289,6 +289,10 @@ MonoBehaviour:
   detectionZone: {fileID: 458215227336104229}
   spawnDelay: 1
   foodSearchRadius: 8
+  waterSearchRadius: 15
+  firstDrinkDelayRange: {x: 4, y: 10}
+  drinkIntervalRange: {x: 25, y: 45}
+  drinkDuration: 2
 --- !u!114 &7169165909542992501
 MonoBehaviour:
   m_ObjectHideFlags: 0

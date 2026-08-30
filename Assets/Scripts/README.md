@@ -48,11 +48,12 @@ is hardcoded to Left Shift in `PlayerController`.
 
 The playable scene and creature prefabs use the artist's final, full-canvas PNG
 frames through `CharacterAnimation2D`; they do not require Animator Controllers.
-Idle, walk, predator chase, and crab sprint frames are selected from reusable
-`CharacterAnimationSet` assets based on player movement input and AI state. Because the
-crab art faces screen-up while the animal art faces screen-down, each animation set
-stores its own facing offset. Only the `Visual` child turns toward travel while its
-Rigidbody, collider, and detection zones remain stable.
+Idle, walk, and predator chase frames are selected from reusable `CharacterAnimationSet`
+assets based on player movement input and AI state. Crab sprinting reuses its walk cycle
+at the set's faster sprint playback rate. Because the crab art faces screen-up while the
+animal art faces screen-down, each animation set stores its own facing offset. Only the
+`Visual` child turns toward travel while its Rigidbody, collider, and detection zones
+remain stable.
 
 To reapply revised files at the existing art paths, run **Tools ▸ Run Crab Run ▸
 Apply Artist Animations**. The command normalizes import settings, rebuilds the five
@@ -67,12 +68,12 @@ referenced by the game.
 Right-click in the Project window ▸ Create ▸ RunCrabRun ▸ Creature Data.
 Make one per creature type and tune values to match the doc's examples:
 
-| Asset          | moveSpeed | chaseSpeed | detectionRange | attackRange | loseInterestTime |
-|----------------|-----------|------------|-----------------|-------------|-------------------|
-| Data_Deer      | 2.5       | –          | 5               | –           | –                 |
-| Data_Sheep     | 2.3       | –          | 5               | –           | –                 |
-| Data_Wolf      | 2.0       | 4.6        | 8               | 1.1         | 5                 |
-| Data_Fox       | 2.8       | 5.5        | 6               | 1.1         | 2                 |
+| Asset          | moveSpeed | chaseSpeed | detectionRange | playerDetectionRange | attackRange | loseInterestTime |
+|----------------|-----------|------------|----------------|----------------------|-------------|------------------|
+| Data_Deer      | 2.5       | –          | 5              | –                    | –           | –                |
+| Data_Sheep     | 2.3       | –          | 5              | –                    | –           | –                |
+| Data_Wolf      | 2.0       | 4.6        | 8              | 6                    | 1.1         | 5                |
+| Data_Fox       | 2.8       | 5.5        | 6              | 0 (uses 6)           | 1.1         | 2                |
 
 (`fleeSpeed`, `wanderRadius`, `minWanderPause`/`maxWanderPause` are used by every
 creature type — tune to taste, defaults are reasonable.)
@@ -109,7 +110,12 @@ rotate their visual child smoothly toward actual Rigidbody movement.
    drag the child `DetectionZone` into the root's `Detection Zone` field.
 5. Save as a prefab (e.g. `Deer.prefab`, `Sheep.prefab`).
 
-## 5. Building a standalone Predator (Wolf / Fox)
+Harmless animals periodically seek the closest point on a Water `ResourceNode`, pause,
+and splash. Their first visit happens soon after spawning, so following one can guide
+the player toward water. An unrevealed Imposter uses the exact same routine, keeping
+that useful clue deliberately risky rather than turning it into an identity test.
+
+## 5. Building the hidden Predator role (Wolf / Fox)
 
 Same steps as above, but:
 - Add `Wolf.cs` or `Fox.cs` instead of `HarmlessAnimal.cs`.
@@ -121,11 +127,19 @@ While idle, a predator selects the nearest harmless animal in range. A visible p
 always takes priority; after losing the player, the predator finishes searching before
 returning to prey hunting.
 
+Wolf and Fox player chases use a 6.5-second acceleration ramp calculated from the
+starting gap and the crab's sprint speed. Their player identification radius remains
+separate from the acquired-target pursuit grace, and prey chases continue using the
+ordinary `chaseSpeed` value.
+
+The current game loop does not spawn standalone Wolf/Fox prefabs. These components and
+prefabs supply the predator half of an Imposter; every live Wolf or Fox begins as an animal.
+
 ## 6. Building an Imposter (the core mechanic, doc section 8)
 
 Full steps live as comments at the top of `ImposterComponent.cs`; summary:
 
-1. Duplicate a finished Sheep/Deer prefab → rename `Sheep_Imposter`.
+1. Duplicate a finished Sheep/Deer prefab → rename it `Sheep_Imposter` or `Deer_Imposter`.
 2. On the **same root GameObject**, add a `Wolf` (or `Fox`) component too. Give it its
    own `CreatureData` (its *true* stats) and its own `DetectionZone` child — leave that
    child **deactivated** in the Inspector.
@@ -136,8 +150,11 @@ Full steps live as comments at the top of `ImposterComponent.cs`; summary:
    `Hidden Predator`, and the `RevealZone` child's DetectionZone into `Reveal Zone`.
 6. Leave the GameObject's Tag as `Animal` — it flips to `Predator` automatically on reveal.
 
-From spawn it wanders and flees like a normal sheep. The instant the player enters the
-`RevealZone`, the disguise drops and it immediately starts chasing.
+From spawn it wanders, flees, and visits water like a normal sheep or deer. The instant
+the player enters the `RevealZone`, the disguise drops and it immediately starts chasing.
+Once it has completely lost the player, finished searching, and stayed calm for four
+seconds, it becomes the original animal again. The player must leave the RevealZone
+before that can happen, preventing transformation flicker; approaching later reveals it again.
 
 ---
 
@@ -148,9 +165,10 @@ prefab you want the crab to be able to hide in.
 
 **ResourceNode** (berry bush / fruit / stream): add `ResourceNode.cs` + a trigger
 `Collider2D`. Suggested values:
-- Berry Bush: Type=Food, Restore=30, Uses=3
+- Berry Bush: Type=Food, Restore=30, Uses=1, Regen Rate=0.0222 (about 45 seconds).
+  Assign matching full/depleted drawings at the same indexes in the sprite arrays.
 - Fruit: Type=Food, Restore=15, Uses=1
-- Stream: Type=Water, Restore=0, Uses=0, Water Regen Per Second=5 (infinite)
+- Stream: Type=Water, Restore=0, Uses=0, Water Regen Per Second=15 (infinite)
 
 Lay these out in resource hotspots per doc section 21 (a few clusters of food/water,
 not evenly scattered).
@@ -165,9 +183,14 @@ not evenly scattered).
    - Drag the GameManager's `DifficultyManager` into `Difficulty`.
    - Create several empty `SpawnPoint` GameObjects around the map edges, drag them
      all into `Spawn Points`.
-   - Drag your Deer/Sheep prefabs into `Harmless Animal Prefabs`, your
-     `Sheep_Imposter`/`Deer_Imposter` prefabs into `Imposter Animal Prefabs`, and your
-     Wolf/Fox prefabs into `Predator Prefabs`.
+   - Drag your Deer/Sheep prefabs into `Harmless Animal Prefabs` and your
+     `Sheep_Imposter`/`Deer_Imposter` prefabs into `Imposter Animal Prefabs`. There is
+     intentionally no standalone Predator prefab list.
+   - The default live scene caps Wolf identities at 2 and Fox identities at 2. Hidden
+     Predator components on unrevealed Imposters reserve a slot, so revealing one can
+     never push the species above its cap.
+   - Every configured Imposter disguise is eligible in every tier. Tiers raise the
+     Imposter chance over time, but all spawned creatures still arrive looking harmless.
 
 ---
 
@@ -204,12 +227,17 @@ trees) so the player physically cannot walk off the map — no invisible walls n
       catches it once, then pauses before hunting again; a visible player interrupts
       the hunt immediately
 - [ ] Deer/Sheep: wander, flee when a real Wolf/Fox/revealed-Imposter gets close
-- [ ] Imposter sheep: behaves exactly like a normal sheep until you get close, then
-      reveals and chases — and other nearby sheep correctly flee it once revealed
-- [ ] Eating a berry bush/fruit restores hunger; drinking at a stream restores thirst
+- [ ] Deer/Sheep and unrevealed Imposters: visit the nearest riverbank, visibly drink,
+      and immediately abandon the trip to flee when a Predator gets close
+- [ ] Imposter sheep/deer: behaves exactly like a normal animal until you get close,
+      then reveals and chases — and other nearby animals correctly flee it once revealed
+- [ ] Revealed Imposter: finishes searching, stays calm for four seconds, changes back,
+      and can reveal again after the player leaves and later re-enters its RevealZone
+- [ ] Eating a berry bush restores hunger, swaps it to its matching empty drawing,
+      and restores the full drawing after about 45 seconds; drinking restores thirst
 - [ ] Death screen shows survival time + best time, Restart button reloads the scene
-- [ ] SpawnManager produces more predators/imposters as SurvivalTime climbs through
-      the DifficultyManager tiers
+- [ ] SpawnManager increases Imposter odds with SurvivalTime, never spawns a visible
+      Wolf/Fox, and never exceeds two hidden-or-revealed identities of either species
 
 Once all of these pass, you have the polished game loop. Remaining doc-section-27
 ideas such as advanced group behavior, large animal panic chains, imposter groups,

@@ -290,7 +290,7 @@ MonoBehaviour:
   spawnDelay: 1
   attackTimer: 0
   hunger: 0
-  maxChaseDuration: 4
+  maxChaseDuration: 8.5
 --- !u!114 &8567190001150739566
 MonoBehaviour:
   m_ObjectHideFlags: 0

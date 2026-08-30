@@ -33,9 +33,13 @@ MonoBehaviour:
   fleeNoiseAngle: 18
   fleeNoiseFrequency: 0.4
   detectionRange: 6
+  playerDetectionRange: 0
   attackRange: 1.1
   attackCooldown: 1
   loseInterestTime: 2
+  playerCatchUpTime: 6.5
+  playerPursuitGraceTime: 7.5
+  playerChaseSpeedCap: 13
   wanderRadius: 6
   minWanderPause: 0.5
   maxWanderPause: 2
