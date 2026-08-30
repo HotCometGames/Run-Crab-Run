@@ -191,19 +191,179 @@ public class MainMenuController : MonoBehaviour
         CreatePageTitle(howToPlayPage.transform, "HOW TO PLAY");
         Transform content = CreateScrollableContent(howToPlayPage.transform, "How To Play Content");
 
-        Transform controls = CreateSection(content, "Controls Section", "CONTROLS");
-        AddInfoRow(controls, "Move", "WASD / Arrow Keys");
-        AddInfoRow(controls, "Sprint", "Left Shift");
+        // Intro: who you are and the one-line goal.
+        Transform intro = CreateTutorialRow(content, "Intro Row", "tut_crab",
+            "You're a hermit crab",
+            "Stay fed and hydrated, and don't get eaten. Survive the timer to win.");
+        SetLayoutHeight(intro.gameObject, 108f);
 
-        Transform survival = CreateSection(content, "Survival Section", "SURVIVAL");
-        AddParagraph(survival, "Find berries to restore hunger.");
-        AddParagraph(survival, "Stand in the stream or at wells to restore thirst.");
-        AddParagraph(survival, "Hide in bushes to escape ground predators.");
+        AddTutorialHeader(content, "CONTROLS");
+        CreateKeyRow(content, "MOVE",
+            new[] { "tut_wasd" },
+            new[] { "tut_arrows" },
+            "WASD or the arrow keys");
+        CreateKeyRow(content, "SPRINT",
+            new[] { "tut_key_shift" }, null,
+            "Hold Shift to run faster");
 
-        Transform danger = CreateSection(content, "Danger Section", "DANGER");
-        AddParagraph(danger, "Deer and sheep may look harmless, but any one of them could be an Imposter.");
-        AddParagraph(danger, "You cannot fight—run, hide, and survive.");
+        AddTutorialHeader(content, "SURVIVE");
+        CreateTutorialRow(content, "Eat Row", "tut_bush",
+            "Eat", "Walk into berry bushes and fruit to refill hunger.");
+        CreateTutorialRow(content, "Drink Row", "tut_water",
+            "Drink", "Stand in the stream to refill thirst.");
+        CreateTutorialRow(content, "Hide Row", "tut_hidebush",
+            "Hide", "Duck into bushes to break a predator's chase.");
+
+        AddTutorialHeader(content, "DANGER");
+        CreateTutorialRow(content, "Imposter Row", "tut_sheep",
+            "Imposters", "Any deer or sheep could secretly be a predator in disguise. Get too close and it may strike.");
+        CreateTutorialRow(content, "Run Row", "tut_wolf",
+            "Run", "You can't fight. When a predator reveals itself\u2014run, hide, and survive.");
+
         CreateBackChoice(howToPlayPage.transform, ShowMain);
+    }
+
+    private const string TutorialResourceFolder = "Tutorial/";
+    private readonly Color tutorialTileColor = new Color(0.97f, 0.95f, 0.89f, 0.12f);
+
+    private static Texture2D LoadTutorialTexture(string textureName)
+    {
+        return Resources.Load<Texture2D>(TutorialResourceFolder + textureName);
+    }
+
+    private void AddTutorialHeader(Transform parent, string heading)
+    {
+        Text text = AddDisplayText(parent, heading, 30, TextAnchor.MiddleLeft, pageAccentColor, 40f);
+        text.fontStyle = FontStyle.Bold;
+    }
+
+    // A left-aligned horizontal row: [icon tile] [title over description].
+    private Transform CreateTutorialRow(Transform parent, string name, string iconTexture, string title, string description)
+    {
+        GameObject row = CreateHorizontalRow(parent, name, 96f, 20f);
+
+        CreateIconTile(row.transform, iconTexture, 92f);
+
+        GameObject column = new GameObject("Text Column", typeof(RectTransform), typeof(VerticalLayoutGroup));
+        column.transform.SetParent(row.transform, false);
+        VerticalLayoutGroup columnLayout = column.GetComponent<VerticalLayoutGroup>();
+        columnLayout.childAlignment = TextAnchor.MiddleLeft;
+        columnLayout.childControlWidth = true;
+        columnLayout.childControlHeight = true;
+        columnLayout.childForceExpandWidth = true;
+        columnLayout.childForceExpandHeight = false;
+        columnLayout.spacing = 2f;
+        AddLayoutWidth(column, 0f, 1f);
+
+        Text titleText = CreateText(column.transform, "Title", title, 26, TextAnchor.LowerLeft, pageAccentColor);
+        titleText.fontStyle = FontStyle.Bold;
+        SetLayoutHeight(titleText.gameObject, 34f);
+
+        Text descText = CreateText(column.transform, "Description", description, 20, TextAnchor.UpperLeft, pageTextColor);
+        descText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        descText.verticalOverflow = VerticalWrapMode.Overflow;
+        SetLayoutHeight(descText.gameObject, 52f);
+
+        return row.transform;
+    }
+
+    // A control row: a fixed-width action label, one or two clusters of key icons, and a hint.
+    private void CreateKeyRow(Transform parent, string action, string[] primaryKeys, string[] secondaryKeys, string hint)
+    {
+        GameObject row = CreateHorizontalRow(parent, action + " Keys Row", 92f, 14f);
+
+        Text label = CreateText(row.transform, "Action", action, 26, TextAnchor.MiddleLeft, pageTextColor);
+        label.fontStyle = FontStyle.Bold;
+        AddLayoutWidth(label.gameObject, 170f, 0f);
+
+        AddKeyCluster(row.transform, primaryKeys, 68f);
+        if (secondaryKeys != null)
+        {
+            Text orText = CreateText(row.transform, "Or", "or", 20, TextAnchor.MiddleCenter, pageMutedTextColor);
+            AddLayoutWidth(orText.gameObject, 46f, 0f);
+            AddKeyCluster(row.transform, secondaryKeys, 68f);
+        }
+
+        if (!string.IsNullOrEmpty(hint))
+        {
+            Text hintText = CreateText(row.transform, "Hint", hint, 18, TextAnchor.MiddleLeft, pageMutedTextColor);
+            AddLayoutWidth(hintText.gameObject, 0f, 1f);
+        }
+    }
+
+    private void AddKeyCluster(Transform parent, string[] keyTextures, float keyHeight)
+    {
+        foreach (string keyTexture in keyTextures)
+            AddKeyIcon(parent, keyTexture, keyHeight);
+    }
+
+    private void AddKeyIcon(Transform parent, string textureName, float height)
+    {
+        Texture2D texture = LoadTutorialTexture(textureName);
+        float aspect = (texture != null && texture.height > 0)
+            ? (float)texture.width / texture.height
+            : 1f;
+
+        RawImage image = CreateRawImage(parent, textureName, texture);
+        image.raycastTarget = false;
+        LayoutElement element = image.gameObject.AddComponent<LayoutElement>();
+        element.preferredHeight = height;
+        element.minHeight = height;
+        element.preferredWidth = height * aspect;
+        element.minWidth = height * aspect;
+        element.flexibleWidth = 0f;
+    }
+
+    // A square, softly tinted chip that holds one sprite, padded and aspect-fit.
+    private void CreateIconTile(Transform parent, string textureName, float size)
+    {
+        Image tile = CreateImage(parent, textureName + " Tile", tutorialTileColor);
+        tile.raycastTarget = false;
+        LayoutElement tileElement = tile.gameObject.AddComponent<LayoutElement>();
+        tileElement.preferredWidth = size;
+        tileElement.minWidth = size;
+        tileElement.preferredHeight = size;
+        tileElement.minHeight = size;
+        tileElement.flexibleWidth = 0f;
+
+        GameObject pad = new GameObject("Pad", typeof(RectTransform));
+        pad.transform.SetParent(tile.transform, false);
+        RectTransform padRect = pad.GetComponent<RectTransform>();
+        padRect.anchorMin = Vector2.zero;
+        padRect.anchorMax = Vector2.one;
+        padRect.offsetMin = new Vector2(10f, 10f);
+        padRect.offsetMax = new Vector2(-10f, -10f);
+
+        Texture2D texture = LoadTutorialTexture(textureName);
+        RawImage image = CreateRawImage(pad.transform, "Icon", texture);
+        image.raycastTarget = false;
+        RectTransform imageRect = image.rectTransform;
+        imageRect.anchorMin = new Vector2(0.5f, 0.5f);
+        imageRect.anchorMax = new Vector2(0.5f, 0.5f);
+        imageRect.pivot = new Vector2(0.5f, 0.5f);
+
+        AspectRatioFitter fitter = image.gameObject.AddComponent<AspectRatioFitter>();
+        fitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+        fitter.aspectRatio = (texture != null && texture.height > 0)
+            ? (float)texture.width / texture.height
+            : 1f;
+    }
+
+    private GameObject CreateHorizontalRow(Transform parent, string name, float height, float spacing)
+    {
+        GameObject row = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        row.transform.SetParent(parent, false);
+        HorizontalLayoutGroup layout = row.GetComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        // Keep child heights at their own preferred size so key icons and sprite
+        // tiles are never stretched vertically; the row centers them instead.
+        layout.childForceExpandHeight = false;
+        layout.spacing = spacing;
+        SetLayoutHeight(row, height);
+        return row;
     }
 
     private void BuildSettingsPage()
