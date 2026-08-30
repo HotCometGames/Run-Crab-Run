@@ -9,8 +9,11 @@ public class UIManager : MonoBehaviour
 {
     private const string HighScoreKey = "RunCrabRun_HighScore";
     private const int HeartCount = 3;
-    private const float ResourceBarWidth = 280f;
-    private const float ResourceBarHeight = 20f;
+    private const float ResourceBarWidth = 330f;
+    private const float ResourceBarHeight = 30f;
+    private const float ResourceFillInset = 3f;
+    private const float ResourceGroupWidth = 390f;
+    private const float ResourceGroupHeight = 70f;
 
     private enum HeartState { Dim, HalfLit, Lit }
 
@@ -67,7 +70,7 @@ public class UIManager : MonoBehaviour
     private readonly Color hudMutedTextColor = new Color(0.31f, 0.25f, 0.21f, 1f);
     private readonly Color hungerColor = new Color(0.87f, 0.31f, 0.19f, 1f);
     private readonly Color thirstColor = new Color(0.28f, 0.66f, 0.82f, 1f);
-    private readonly Color barBackgroundColor = new Color(0.15f, 0.12f, 0.1f, 0.65f);
+    private readonly Color barBackgroundColor = new Color(0.055f, 0.045f, 0.04f, 0.9f);
 
     private Font deathFont;
     private Image darkOverlay;
@@ -84,6 +87,8 @@ public class UIManager : MonoBehaviour
     private readonly Coroutine[] heartRegenRoutines = new Coroutine[HeartCount];
     private RectTransform hungerFillRect;
     private RectTransform thirstFillRect;
+    private Text hungerValueText;
+    private Text thirstValueText;
     private Sprite hudBarSprite;
     private Text survivalTimerText;
     private Text bestTimerText;
@@ -337,14 +342,38 @@ public class UIManager : MonoBehaviour
         rect.anchorMin = new Vector2(0.5f, 0f);
         rect.anchorMax = new Vector2(0.5f, 0f);
         rect.pivot = new Vector2(0.5f, 0f);
-        rect.anchoredPosition = new Vector2(0f, 34f);
-        rect.sizeDelta = new Vector2(650f, 96f);
+        rect.anchoredPosition = new Vector2(0f, 32f);
+        rect.sizeDelta = new Vector2(820f, 76f);
 
-        hungerFillRect = CreateResourceGroup(display.transform, "Hunger Display", "HUNGER", hungerIcon, hungerColor, -165f);
-        thirstFillRect = CreateResourceGroup(display.transform, "Thirst Display", "THIRST", thirstIcon, thirstColor, 165f);
+        hungerFillRect = CreateResourceGroup(
+            display.transform,
+            "Hunger Display",
+            "HUNGER",
+            hungerIcon,
+            new Vector2(48f, 48f),
+            hungerColor,
+            -205f,
+            out hungerValueText);
+        thirstFillRect = CreateResourceGroup(
+            display.transform,
+            "Water Display",
+            "WATER",
+            thirstIcon,
+            new Vector2(48f, 48f),
+            thirstColor,
+            205f,
+            out thirstValueText);
     }
 
-    private RectTransform CreateResourceGroup(Transform parent, string name, string label, Sprite iconSprite, Color fillColor, float xPosition)
+    private RectTransform CreateResourceGroup(
+        Transform parent,
+        string name,
+        string label,
+        Sprite iconSprite,
+        Vector2 iconSize,
+        Color fillColor,
+        float xPosition,
+        out Text valueText)
     {
         GameObject group = new GameObject(name, typeof(RectTransform));
         group.transform.SetParent(parent, false);
@@ -353,14 +382,17 @@ public class UIManager : MonoBehaviour
         groupRect.anchorMax = new Vector2(0.5f, 0f);
         groupRect.pivot = new Vector2(0.5f, 0f);
         groupRect.anchoredPosition = new Vector2(xPosition, 0f);
-        groupRect.sizeDelta = new Vector2(ResourceBarWidth, 96f);
+        groupRect.sizeDelta = new Vector2(ResourceGroupWidth, ResourceGroupHeight);
 
-        Text title = CreateHudText(group.transform, "Label", label, 20, TextAnchor.MiddleCenter);
+        Text title = CreateHudText(group.transform, "Label", label, 20, TextAnchor.MiddleLeft);
+        title.color = primaryTextColor;
+        title.fontStyle = FontStyle.Bold;
+        title.raycastTarget = false;
         RectTransform titleRect = title.rectTransform;
-        titleRect.anchorMin = new Vector2(0.5f, 1f);
-        titleRect.anchorMax = new Vector2(0.5f, 1f);
-        titleRect.pivot = new Vector2(0.5f, 1f);
-        titleRect.anchoredPosition = Vector2.zero;
+        titleRect.anchorMin = new Vector2(0f, 1f);
+        titleRect.anchorMax = new Vector2(0f, 1f);
+        titleRect.pivot = new Vector2(0f, 1f);
+        titleRect.anchoredPosition = new Vector2(60f, -1f);
         titleRect.sizeDelta = new Vector2(ResourceBarWidth, 26f);
 
         Image icon = CreateImage(group.transform, "Icon", Color.white);
@@ -369,35 +401,44 @@ public class UIManager : MonoBehaviour
         icon.raycastTarget = false;
         icon.enabled = iconSprite != null;
         RectTransform iconRect = icon.rectTransform;
-        iconRect.anchorMin = new Vector2(0.5f, 1f);
-        iconRect.anchorMax = new Vector2(0.5f, 1f);
-        iconRect.pivot = new Vector2(0.5f, 1f);
-        iconRect.anchoredPosition = new Vector2(0f, -28f);
-        iconRect.sizeDelta = iconSprite != null ? new Vector2(26f, 26f) : Vector2.zero;
+        iconRect.anchorMin = new Vector2(0f, 0.5f);
+        iconRect.anchorMax = new Vector2(0f, 0.5f);
+        iconRect.pivot = new Vector2(0.5f, 0.5f);
+        iconRect.anchoredPosition = new Vector2(27f, 0f);
+        iconRect.sizeDelta = iconSprite != null ? iconSize : Vector2.zero;
 
-        GameObject track = new GameObject("Track", typeof(RectTransform), typeof(Image));
+        GameObject track = new GameObject("Track", typeof(RectTransform), typeof(Image), typeof(Outline));
         track.transform.SetParent(group.transform, false);
         RectTransform trackRect = track.GetComponent<RectTransform>();
-        trackRect.anchorMin = new Vector2(0.5f, 1f);
-        trackRect.anchorMax = new Vector2(0.5f, 1f);
-        trackRect.pivot = new Vector2(0.5f, 1f);
-        trackRect.anchoredPosition = new Vector2(0f, iconSprite != null ? -66f : -38f);
+        trackRect.anchorMin = new Vector2(0f, 0f);
+        trackRect.anchorMax = new Vector2(0f, 0f);
+        trackRect.pivot = new Vector2(0f, 0f);
+        trackRect.anchoredPosition = new Vector2(60f, 4f);
         trackRect.sizeDelta = new Vector2(ResourceBarWidth, ResourceBarHeight);
 
         Image background = track.GetComponent<Image>();
         background.sprite = GetHudBarSprite();
+        background.type = Image.Type.Sliced;
         background.color = barBackgroundColor;
         background.raycastTarget = false;
 
+        Outline trackOutline = track.GetComponent<Outline>();
+        trackOutline.effectColor = new Color(0f, 0f, 0f, 0.62f);
+        trackOutline.effectDistance = new Vector2(2f, -2f);
+        trackOutline.useGraphicAlpha = true;
+
         Image fill = CreateImage(track.transform, "Fill", fillColor);
         fill.sprite = background.sprite;
+        fill.type = Image.Type.Sliced;
         fill.raycastTarget = false;
         RectTransform fillRect = fill.rectTransform;
         fillRect.anchorMin = new Vector2(0f, 0f);
         fillRect.anchorMax = new Vector2(0f, 1f);
         fillRect.pivot = new Vector2(0f, 0.5f);
-        fillRect.anchoredPosition = Vector2.zero;
-        fillRect.sizeDelta = new Vector2(ResourceBarWidth, 0f);
+        fillRect.anchoredPosition = new Vector2(ResourceFillInset, 0f);
+        fillRect.sizeDelta = new Vector2(ResourceBarWidth - ResourceFillInset * 2f, -ResourceFillInset * 2f);
+
+        valueText = null;
         return fillRect;
     }
 
@@ -495,8 +536,8 @@ public class UIManager : MonoBehaviour
             displayedThirst = Mathf.Lerp(displayedThirst, thirst, blend);
         }
 
-        SetResourceFillWidth(hungerFillRect, displayedHunger);
-        SetResourceFillWidth(thirstFillRect, displayedThirst);
+        SetResourceValue(hungerFillRect, hungerValueText, displayedHunger);
+        SetResourceValue(thirstFillRect, thirstValueText, displayedThirst);
     }
 
     private void UpdateSurvivalTimer()
@@ -511,10 +552,16 @@ public class UIManager : MonoBehaviour
         if (bestTimerText != null) bestTimerText.text = "★ " + ClockText(bestSurvivalTime);
     }
 
-    private static void SetResourceFillWidth(RectTransform fillRect, float normalizedValue)
+    private static void SetResourceValue(RectTransform fillRect, Text valueText, float normalizedValue)
     {
-        if (fillRect == null) return;
-        fillRect.sizeDelta = new Vector2(ResourceBarWidth * Mathf.Clamp01(normalizedValue), 0f);
+        float value = Mathf.Clamp01(normalizedValue);
+        if (fillRect != null)
+        {
+            float fillWidth = (ResourceBarWidth - ResourceFillInset * 2f) * value;
+            fillRect.sizeDelta = new Vector2(fillWidth, -ResourceFillInset * 2f);
+        }
+
+        if (valueText != null) valueText.text = Mathf.RoundToInt(value * 100f) + "%";
     }
 
     private static bool IsRunOver()
@@ -699,13 +746,39 @@ public class UIManager : MonoBehaviour
     {
         if (hudBarSprite != null) return hudBarSprite;
 
-        Texture2D texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+        const int textureSize = 32;
+        const float cornerRadius = 8f;
+        Texture2D texture = new Texture2D(textureSize, textureSize, TextureFormat.RGBA32, false);
         texture.name = "Runtime HUD Bar Texture";
-        texture.SetPixel(0, 0, Color.white);
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+
+        Color32[] pixels = new Color32[textureSize * textureSize];
+        float halfSize = textureSize * 0.5f;
+        float innerHalfSize = halfSize - cornerRadius;
+        for (int y = 0; y < textureSize; y++)
+        {
+            for (int x = 0; x < textureSize; x++)
+            {
+                float dx = Mathf.Max(Mathf.Abs(x + 0.5f - halfSize) - innerHalfSize, 0f);
+                float dy = Mathf.Max(Mathf.Abs(y + 0.5f - halfSize) - innerHalfSize, 0f);
+                float alpha = Mathf.Clamp01(cornerRadius + 0.5f - Mathf.Sqrt(dx * dx + dy * dy));
+                pixels[y * textureSize + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
+            }
+        }
+
+        texture.SetPixels32(pixels);
         texture.Apply(false, true);
         texture.hideFlags = HideFlags.HideAndDontSave;
 
-        hudBarSprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
+        hudBarSprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, textureSize, textureSize),
+            new Vector2(0.5f, 0.5f),
+            100f,
+            0,
+            SpriteMeshType.FullRect,
+            new Vector4(cornerRadius, cornerRadius, cornerRadius, cornerRadius));
         hudBarSprite.name = "Runtime HUD Bar Sprite";
         hudBarSprite.hideFlags = HideFlags.HideAndDontSave;
         return hudBarSprite;

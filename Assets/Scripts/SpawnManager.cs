@@ -34,8 +34,27 @@ public class SpawnManager : MonoBehaviour
     public int maxTotalCreatures = 50;
     [Min(0), Tooltip("Maximum Wolves present, including dormant Wolves inside unrevealed impostors.")]
     public int maxWolves = 2;
-    [Min(0), Tooltip("Maximum Foxes present, including dormant Foxes inside unrevealed impostors.")]
+    [Min(0), Tooltip("Starting maximum Foxes. Timed bonus predator slots add to this allowance while the Wolf cap stays fixed.")]
     public int maxFoxes = 2;
+
+    [Header("Predator Population Ramp")]
+    [Min(0f), Tooltip("Seconds before the total predator capacity begins increasing.")]
+    public float predatorRampStartTime = 120f;
+    [Min(0.1f), Tooltip("Seconds between increases to total predator capacity.")]
+    public float predatorRampInterval = 35f;
+    [Min(0), Tooltip("Predator slots added each interval after the ramp begins.")]
+    public int predatorsAddedPerInterval = 1;
+
+    public int CurrentMaxPredators
+    {
+        get
+        {
+            int totalCreatureCap = Mathf.Max(0, maxTotalCreatures);
+            int basePredatorCap = Mathf.Max(0, maxWolves) + Mathf.Max(0, maxFoxes);
+            return Mathf.Min(totalCreatureCap, basePredatorCap + GetPredatorCapacityIncrease());
+        }
+    }
+
     [Tooltip("Random offset radius around each spawn point.")]
     public float spawnRadius = 1.5f;
     [Tooltip("Avoid popping new creatures directly beside the player.")]
@@ -240,9 +259,16 @@ public class SpawnManager : MonoBehaviour
         List<GameObject> valid = new List<GameObject>();
         if (imposterAnimalPrefabs == null) return null;
 
+        int predatorCapacityIncrease = GetPredatorCapacityIncrease();
+        if (currentWolfCount + currentFoxCount >= CurrentMaxPredators) return null;
+
         foreach (GameObject prefab in imposterAnimalPrefabs)
         {
-            if (prefab == null || !HasSpeciesCapacity(prefab, currentWolfCount, currentFoxCount))
+            if (prefab == null || !HasSpeciesCapacity(
+                    prefab,
+                    currentWolfCount,
+                    currentFoxCount,
+                    predatorCapacityIncrease))
                 continue;
 
             ImposterComponent imposter = prefab.GetComponent<ImposterComponent>();
@@ -261,15 +287,38 @@ public class SpawnManager : MonoBehaviour
         return valid.Count > 0 ? valid[Random.Range(0, valid.Count)] : null;
     }
 
-    private bool HasSpeciesCapacity(GameObject prefab, int currentWolfCount, int currentFoxCount)
+    private bool HasSpeciesCapacity(
+        GameObject prefab,
+        int currentWolfCount,
+        int currentFoxCount,
+        int predatorCapacityIncrease)
     {
         if (prefab.GetComponent<Wolf>() != null && currentWolfCount >= Mathf.Max(0, maxWolves))
             return false;
 
-        if (prefab.GetComponent<Fox>() != null && currentFoxCount >= Mathf.Max(0, maxFoxes))
+        int effectiveFoxCap = Mathf.Max(0, maxFoxes) + predatorCapacityIncrease;
+        if (prefab.GetComponent<Fox>() != null && currentFoxCount >= effectiveFoxCap)
             return false;
 
         return true;
+    }
+
+    private int GetPredatorCapacityIncrease()
+    {
+        float survivalTime = GameManager.Instance != null ? GameManager.Instance.SurvivalTime : 0f;
+        float rampStartTime = Mathf.Max(0f, predatorRampStartTime);
+        if (survivalTime <= rampStartTime) return 0;
+
+        float interval = Mathf.Max(0.1f, predatorRampInterval);
+        int completedIntervals = Mathf.FloorToInt((survivalTime - rampStartTime) / interval);
+        int increasePerInterval = Mathf.Max(0, predatorsAddedPerInterval);
+        int maxUsefulIncrease = Mathf.Max(0, maxTotalCreatures);
+
+        if (completedIntervals <= 0 || increasePerInterval <= 0) return 0;
+        if (completedIntervals > maxUsefulIncrease / increasePerInterval)
+            return maxUsefulIncrease;
+
+        return completedIntervals * increasePerInterval;
     }
 
     private static void IncrementSpeciesCounts(

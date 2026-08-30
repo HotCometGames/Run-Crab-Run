@@ -15,7 +15,7 @@ public class PlayerController : MonoBehaviour
 {
     [Header("Audio")]
     [SerializeField] private AudioClip CrabWalk;
-    [SerializeField, Range(0f, 1f)] private float movementVolume = 0.25f;
+    [SerializeField, Range(0f, 1f)] private float movementVolume = 0.198f;
 
     [Header("Movement")]
     public float moveSpeed = 3f;

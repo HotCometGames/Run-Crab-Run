@@ -15,6 +15,14 @@ public class PlayerSurvival : MonoBehaviour
     public float hungerDrainPerSecond = 0.75f;
     public float sprintHungerMultiplier = 2f;
 
+    [Header("Hunger Difficulty Ramp")]
+    [Min(0f), Tooltip("Seconds before the timed hunger-drain ramp begins.")]
+    public float hungerDrainRampStartTime = 90f;
+    [Min(0.1f), Tooltip("Seconds between hunger-drain increases after the ramp begins.")]
+    public float hungerDrainRampInterval = 30f;
+    [Min(0f), Tooltip("Fraction of the base hunger drain added each interval. 0.02 = 2%.")]
+    public float hungerDrainIncreasePerInterval = 0.02f;
+
     [Header("Thirst")]
     public float maxThirst = 100f;
     public float thirst = 100f;
@@ -43,7 +51,8 @@ public class PlayerSurvival : MonoBehaviour
     {
         if (controller == null || controller.IsDead) return;
 
-        float hungerDrain = hungerDrainPerSecond * (controller.IsSprinting ? sprintHungerMultiplier : 1f);
+        float hungerDrain = hungerDrainPerSecond * GetHungerDrainMultiplier() *
+            (controller.IsSprinting ? sprintHungerMultiplier : 1f);
         hunger -= hungerDrain * Time.deltaTime;
         thirst -= thirstDrainPerSecond * Time.deltaTime;
 
@@ -60,6 +69,17 @@ public class PlayerSurvival : MonoBehaviour
         {
             controller.Die();
         }
+    }
+
+    private float GetHungerDrainMultiplier()
+    {
+        float survivalTime = GameManager.Instance != null ? GameManager.Instance.SurvivalTime : 0f;
+        float rampStartTime = Mathf.Max(0f, hungerDrainRampStartTime);
+        if (survivalTime <= rampStartTime) return 1f;
+
+        float interval = Mathf.Max(0.1f, hungerDrainRampInterval);
+        int completedIntervals = Mathf.FloorToInt((survivalTime - rampStartTime) / interval);
+        return 1f + completedIntervals * Mathf.Max(0f, hungerDrainIncreasePerInterval);
     }
 
     // Called by ResourceNode.cs when the player eats/drinks.

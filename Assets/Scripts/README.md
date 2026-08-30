@@ -98,6 +98,10 @@ rotate their visual child smoothly toward actual Rigidbody movement.
 3. Add `PlayerController.cs` and `PlayerSurvival.cs`.
 4. That's it — hiding and dying are wired automatically via `HidingSpot` and `Predator`.
 
+The live scene keeps its configured hunger drain through 1:30. It then adds 2% of
+the base drain every 30 seconds, with the first increase at 2:00. Sprinting retains
+the same multiplier on top of the current scaled drain.
+
 ---
 
 ## 4. Building a Harmless Animal (Deer / Sheep)
@@ -151,7 +155,9 @@ Full steps live as comments at the top of `ImposterComponent.cs`; summary:
 6. Leave the GameObject's Tag as `Animal` — it flips to `Predator` automatically on reveal.
 
 From spawn it wanders, flees, and visits water like a normal sheep or deer. The instant
-the player enters the `RevealZone`, the disguise drops and it immediately starts chasing.
+the visible player enters the `RevealZone`, the disguise drops and it immediately starts
+chasing. A player hidden in a bush can overlap the zone without revealing the Imposter;
+leaving cover while still in the zone reveals it normally.
 Once it has completely lost the player, finished searching, and stayed calm for four
 seconds, it becomes the original animal again. The player must leave the RevealZone
 before that can happen, preventing transformation flicker; approaching later reveals it again.
@@ -188,9 +194,12 @@ not evenly scattered).
      intentionally no standalone Predator prefab list.
    - `Initial Harmless Count` seeds genuine Deer/Sheep before the timed batches begin.
      These opening animals never use the Imposter prefab pool.
-   - The default live scene caps Wolf identities at 2 and Fox identities at 2. Hidden
-     Predator components on unrevealed Imposters reserve a slot, so revealing one can
-     never push the species above its cap.
+   - The default live scene hard-caps Wolf identities at 2 and starts with room for 2
+     Fox identities. Hidden Predator components on unrevealed Imposters reserve a slot,
+     so revealing one never bypasses the current population limits.
+   - Beginning after 2:00, total predator capacity gains one slot every 35 seconds
+     (first at 2:35). The Wolf limit remains fixed at 2, so timed bonus slots expand
+     Fox capacity and are filled through the ordinary disguised-Imposter batches.
    - Every configured Imposter disguise is eligible in every tier. Tiers raise the
      Imposter chance over time, but all spawned creatures still arrive looking harmless.
 
@@ -231,8 +240,9 @@ trees) so the player physically cannot walk off the map — no invisible walls n
 - [ ] Deer/Sheep: wander, flee when a real Wolf/Fox/revealed-Imposter gets close
 - [ ] Deer/Sheep and unrevealed Imposters: visit the nearest riverbank, visibly drink,
       and immediately abandon the trip to flee when a Predator gets close
-- [ ] Imposter sheep/deer: behaves exactly like a normal animal until you get close,
-      then reveals and chases — and other nearby animals correctly flee it once revealed
+- [ ] Imposter sheep/deer: behaves exactly like a normal animal until the visible player
+      gets close, stays disguised near a hidden player, then reveals and chases when the
+      player leaves cover — and other nearby animals correctly flee it once revealed
 - [ ] Revealed Imposter: finishes searching, stays calm for four seconds, changes back,
       and can reveal again after the player leaves and later re-enters its RevealZone
 - [ ] Eating a berry bush restores hunger, swaps it to its matching empty drawing,

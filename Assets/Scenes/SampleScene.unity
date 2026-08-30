@@ -449,8 +449,8 @@ MonoBehaviour:
   halfLitHeartSprite: {fileID: 0}
   fullHeartSprite: {fileID: 0}
   emptyHeartSprite: {fileID: 0}
-  hungerIcon: {fileID: 0}
-  thirstIcon: {fileID: 0}
+  hungerIcon: {fileID: 7902471212249120359, guid: 72c451142a57906438bb488af237aa59, type: 3}
+  thirstIcon: {fileID: -2678177863688849800, guid: d5d9462dd3c125d498455d44376c0119, type: 3}
   heartRegenFlashDuration: 0.4
   heartRegenFlashCount: 2
   resourceBarSmoothingSpeed: 10
@@ -732,6 +732,9 @@ MonoBehaviour:
   hunger: 100
   hungerDrainPerSecond: 2.25
   sprintHungerMultiplier: 2
+  hungerDrainRampStartTime: 90
+  hungerDrainRampInterval: 30
+  hungerDrainIncreasePerInterval: 0.02
   maxThirst: 100
   thirst: 100
   thirstDrainPerSecond: 3
@@ -754,7 +757,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   CrabWalk: {fileID: 8300000, guid: c25e5d9c8bbc9e64ebab66a27f1ff578, type: 3}
-  movementVolume: 0.25
+  movementVolume: 0.198
   moveSpeed: 3
   sprintMultiplier: 1.9
   hiddenAlpha: 0.4
@@ -3204,6 +3207,9 @@ MonoBehaviour:
   maxTotalCreatures: 30
   maxWolves: 2
   maxFoxes: 2
+  predatorRampStartTime: 120
+  predatorRampInterval: 35
+  predatorsAddedPerInterval: 1
   spawnRadius: 0.75
   minSpawnDistanceFromPlayer: 6
   minSpawnDistanceFromCreatures: 1.35

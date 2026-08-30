@@ -11,7 +11,7 @@ public class ImposterComponent : MonoBehaviour
     [Tooltip("Predator behaviour on this GameObject. It must start disabled in the Inspector.")]
     public Predator hiddenPredator;
 
-    [Tooltip("Small child trigger that reveals the disguise when the player gets close.")]
+    [Tooltip("Small child trigger that reveals the disguise when the visible player gets close.")]
     public DetectionZone revealZone;
 
     [Header("Feedback")]
@@ -69,10 +69,21 @@ public class ImposterComponent : MonoBehaviour
 
     private void Update()
     {
-        if (!revealed || hiddenPredator == null || !hiddenPredator.isActiveAndEnabled)
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver)
             return;
 
-        if (GameManager.Instance != null && GameManager.Instance.IsGameOver)
+        // Trigger callbacks from the reveal zone and a hiding spot can happen in
+        // either order during the same physics step. Checking here, after those
+        // callbacks have settled, prevents a crab entering cover from revealing an
+        // imposter. It also lets an overlapping imposter reveal as soon as the crab
+        // leaves cover without requiring another reveal-zone enter event.
+        if (!revealed)
+        {
+            if (VisiblePlayerIsInsideRevealZone()) Reveal();
+            return;
+        }
+
+        if (hiddenPredator == null || !hiddenPredator.isActiveAndEnabled)
             return;
 
         if (hiddenPredator.CurrentState != Predator.State.Wander ||
@@ -112,7 +123,6 @@ public class ImposterComponent : MonoBehaviour
         if (other == null || !other.CompareTag("Player")) return;
 
         overlappingPlayerColliders.Add(other);
-        if (!revealed) Reveal();
     }
 
     private void HandleRevealZoneExit(Collider2D other)
@@ -187,9 +197,28 @@ public class ImposterComponent : MonoBehaviour
 
     private bool PlayerIsInsideRevealZone()
     {
+        PrunePlayerOverlaps();
+        return overlappingPlayerColliders.Count > 0;
+    }
+
+    private bool VisiblePlayerIsInsideRevealZone()
+    {
+        PrunePlayerOverlaps();
+
+        foreach (Collider2D collider in overlappingPlayerColliders)
+        {
+            PlayerController controller = collider.GetComponentInParent<PlayerController>();
+            if (controller != null && !controller.IsHidden && !controller.IsDead)
+                return true;
+        }
+
+        return false;
+    }
+
+    private void PrunePlayerOverlaps()
+    {
         overlappingPlayerColliders.RemoveWhere(collider =>
             collider == null || !collider.enabled || !collider.gameObject.activeInHierarchy);
-        return overlappingPlayerColliders.Count > 0;
     }
 
     private void NotifyDisguiseOfNearbyPredators()

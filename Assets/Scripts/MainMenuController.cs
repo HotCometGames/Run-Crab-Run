@@ -67,6 +67,16 @@ public class MainMenuController : MonoBehaviour
     private readonly Color pageMutedTextColor = new Color(0.74f, 0.70f, 0.64f, 1f);
     private readonly Color pageAccentColor = new Color(0.95f, 0.57f, 0.39f, 1f);
 
+    // PLAY always routes through the How To Play page and requires the player to
+    // scroll to the end before the game unlocks.
+    private ScrollRect howToPlayScrollRect;
+    private Button howToPlayActionButton;
+    private Text howToPlayActionLabel;
+    private bool playTutorialGate;
+    private bool tutorialUnlocked;
+    private int tutorialUnlockCheckFrame;
+    private const float TutorialKeyboardScrollSpeed = 0.65f;
+
     private void Awake()
     {
         font = LoadComicSans();
@@ -87,12 +97,124 @@ public class MainMenuController : MonoBehaviour
         {
             ShowMain();
         }
+
+        if (activePage == Page.HowToPlay && playTutorialGate)
+        {
+            ScrollTutorialWithKeyboard();
+
+            // Wait until the activated page has completed at least one layout pass,
+            // then unlock only after the player actually reaches the end.
+            if (!tutorialUnlocked && Time.frameCount >= tutorialUnlockCheckFrame &&
+                IsHowToPlayScrolledToEnd())
+            {
+                tutorialUnlocked = true;
+                RefreshHowToPlayFooter();
+                EventSystem.current?.SetSelectedGameObject(howToPlayActionButton.gameObject);
+            }
+        }
     }
 
     public void StartRun()
     {
+        BeginPlayTutorial();
+    }
+
+    private void LoadGameplay()
+    {
         Time.timeScale = 1f;
         SceneManager.LoadScene(gameplaySceneName);
+    }
+
+    private void BeginPlayTutorial()
+    {
+        playTutorialGate = true;
+        tutorialUnlocked = false;
+        SetActivePage(Page.HowToPlay);
+        RebuildHowToPlayLayout();
+        ResetHowToPlayScroll();
+        tutorialUnlockCheckFrame = Time.frameCount + 1;
+        EventSystem.current?.SetSelectedGameObject(null);
+        RefreshHowToPlayFooter();
+    }
+
+    // The footer button does double duty: "Back" in review mode, "Start Game" in the
+    // gated PLAY flow.
+    private void HowToPlayPrimaryAction()
+    {
+        if (playTutorialGate)
+        {
+            if (!tutorialUnlocked) return;
+            LoadGameplay();
+            return;
+        }
+        ShowMain();
+    }
+
+    private void ResetHowToPlayScroll()
+    {
+        if (howToPlayScrollRect == null) return;
+        howToPlayScrollRect.StopMovement();
+        howToPlayScrollRect.verticalNormalizedPosition = 1f;
+    }
+
+    private void RebuildHowToPlayLayout()
+    {
+        if (howToPlayScrollRect == null || howToPlayScrollRect.content == null) return;
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(howToPlayScrollRect.content);
+        Canvas.ForceUpdateCanvases();
+    }
+
+    private void ScrollTutorialWithKeyboard()
+    {
+        if (howToPlayScrollRect == null) return;
+
+        float scrollDelta = 0f;
+        if (Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S))
+            scrollDelta -= TutorialKeyboardScrollSpeed * Time.unscaledDeltaTime;
+        if (Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W))
+            scrollDelta += TutorialKeyboardScrollSpeed * Time.unscaledDeltaTime;
+        if (Input.GetKeyDown(KeyCode.PageDown)) scrollDelta -= 0.35f;
+        if (Input.GetKeyDown(KeyCode.PageUp)) scrollDelta += 0.35f;
+
+        if (!Mathf.Approximately(scrollDelta, 0f))
+        {
+            howToPlayScrollRect.StopMovement();
+            howToPlayScrollRect.verticalNormalizedPosition = Mathf.Clamp01(
+                howToPlayScrollRect.verticalNormalizedPosition + scrollDelta);
+        }
+    }
+
+    private bool IsHowToPlayScrolledToEnd()
+    {
+        if (howToPlayScrollRect == null) return false;
+        RectTransform content = howToPlayScrollRect.content;
+        RectTransform viewport = howToPlayScrollRect.viewport;
+        if (content == null || viewport == null ||
+            content.rect.height <= 0f || viewport.rect.height <= 0f)
+        {
+            return false;
+        }
+        // Nothing to scroll if the guide already fits the viewport.
+        if (content.rect.height <= viewport.rect.height + 1f) return true;
+        return howToPlayScrollRect.verticalNormalizedPosition <= 0.02f;
+    }
+
+    private void RefreshHowToPlayFooter()
+    {
+        if (howToPlayActionLabel == null || howToPlayActionButton == null) return;
+        if (playTutorialGate)
+        {
+            howToPlayActionButton.interactable = tutorialUnlocked;
+            howToPlayActionLabel.text = tutorialUnlocked ? "START GAME" : "READ TO THE BOTTOM TO BEGIN";
+            howToPlayActionLabel.color = tutorialUnlocked ? pageAccentColor : pageMutedTextColor;
+        }
+        else
+        {
+            howToPlayActionButton.interactable = true;
+            howToPlayActionLabel.text = "> BACK";
+            howToPlayActionLabel.color = pageTextColor;
+        }
     }
 
     public void ShowMain()
@@ -102,7 +224,14 @@ public class MainMenuController : MonoBehaviour
         SetMainSelection(0);
     }
 
-    public void ShowHowToPlay() => SetActivePage(Page.HowToPlay);
+    public void ShowHowToPlay()
+    {
+        playTutorialGate = false;
+        SetActivePage(Page.HowToPlay);
+        RebuildHowToPlayLayout();
+        ResetHowToPlayScroll();
+        RefreshHowToPlayFooter();
+    }
     public void ShowSettings() => SetActivePage(Page.Settings);
     public void ShowCredits() => SetActivePage(Page.Credits);
 
@@ -190,11 +319,12 @@ public class MainMenuController : MonoBehaviour
     {
         CreatePageTitle(howToPlayPage.transform, "HOW TO PLAY");
         Transform content = CreateScrollableContent(howToPlayPage.transform, "How To Play Content");
+        howToPlayScrollRect = howToPlayPage.GetComponentInChildren<ScrollRect>();
 
         // Intro: who you are and the one-line goal.
         Transform intro = CreateTutorialRow(content, "Intro Row", "tut_crab",
             "You're a hermit crab",
-            "Stay fed and hydrated, and don't get eaten. Survive the timer to win.");
+            "Stay fed and hydrated, and don't get eaten. Survive as long as possible.");
         SetLayoutHeight(intro.gameObject, 108f);
 
         AddTutorialHeader(content, "CONTROLS");
@@ -220,7 +350,7 @@ public class MainMenuController : MonoBehaviour
         CreateTutorialRow(content, "Run Row", "tut_wolf",
             "Run", "You can't fight. When a predator reveals itself\u2014run, hide, and survive.");
 
-        CreateBackChoice(howToPlayPage.transform, ShowMain);
+        CreateHowToPlayFooter(howToPlayPage.transform);
     }
 
     private const string TutorialResourceFolder = "Tutorial/";
@@ -797,6 +927,34 @@ public class MainMenuController : MonoBehaviour
         Stretch(label.rectTransform);
         EventTrigger trigger = buttonObject.GetComponent<EventTrigger>();
         AddPointerEnter(trigger, () => label.color = pageAccentColor);
+    }
+
+    // Footer for the How To Play page. Its label and action change with the mode, so the
+    // button and label are kept as fields and refreshed by RefreshHowToPlayFooter.
+    private void CreateHowToPlayFooter(Transform parent)
+    {
+        GameObject buttonObject = new GameObject("How To Play Action", typeof(RectTransform), typeof(Image), typeof(Button), typeof(EventTrigger));
+        buttonObject.transform.SetParent(parent, false);
+        RectTransform rect = buttonObject.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0f);
+        rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.anchoredPosition = new Vector2(0f, 34f);
+        rect.sizeDelta = new Vector2(560f, 52f);
+        buttonObject.GetComponent<Image>().color = Color.clear;
+
+        howToPlayActionButton = buttonObject.GetComponent<Button>();
+        howToPlayActionButton.onClick.AddListener(HowToPlayPrimaryAction);
+
+        howToPlayActionLabel = CreateText(buttonObject.transform, "Label", "> BACK", 27, TextAnchor.MiddleCenter, pageTextColor);
+        Stretch(howToPlayActionLabel.rectTransform);
+
+        EventTrigger trigger = buttonObject.GetComponent<EventTrigger>();
+        AddPointerEnter(trigger, () =>
+        {
+            if (howToPlayActionButton.interactable)
+                howToPlayActionLabel.color = pageAccentColor;
+        });
     }
 
     private Text CreateText(Transform parent, string objectName, string value, int size, TextAnchor alignment, Color color)
