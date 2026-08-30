@@ -9,8 +9,6 @@ public class UIManager : MonoBehaviour
 {
     private const string HighScoreKey = "RunCrabRun_HighScore";
     private const int HeartCount = 3;
-    private const float ResourceBarWidth = 280f;
-    private const float ResourceBarHeight = 20f;
 
     private enum HeartState { Dim, HalfLit, Lit }
 
@@ -27,18 +25,16 @@ public class UIManager : MonoBehaviour
     public static UIManager Instance { get; private set; }
 
     [Header("HUD")]
-    [Tooltip("Legacy scene bars. They are hidden when the runtime HUD is built.")]
     public Slider hungerBar;
     public Slider thirstBar;
     public Slider healthBar;
     public PlayerSurvival playerSurvival;
 
-    [Header("HUD Art (Optional)")]
-    [SerializeField] private Sprite halfLitHeartSprite;
-    [SerializeField] private Sprite fullHeartSprite;
-    [SerializeField] private Sprite emptyHeartSprite;
-    [SerializeField] private Sprite hungerIcon;
-    [SerializeField] private Sprite thirstIcon;
+    [Header("Resource Icons (Canvas)")]
+    [SerializeField] private Image hungerIconGreyImage;
+    [SerializeField] private Image hungerIconColorImage;
+    [SerializeField] private Image thirstIconGreyImage;
+    [SerializeField] private Image thirstIconColorImage;
 
     [Header("HUD Animation")]
     [SerializeField, Min(0.1f)] private float heartRegenFlashDuration = 0.4f;
@@ -50,6 +46,11 @@ public class UIManager : MonoBehaviour
     public GameObject deathScreenPanel;
     public Text survivalTimeText;
     public Text bestTimeText;
+
+    [Header("HUD Art (Optional)")]
+    [SerializeField] private Sprite halfLitHeartSprite;
+    [SerializeField] private Sprite fullHeartSprite;
+    [SerializeField] private Sprite emptyHeartSprite;
 
     [Header("Death Transition")]
     [SerializeField, Min(1f)] private float deathZoomMultiplier = 1.4f;
@@ -65,9 +66,7 @@ public class UIManager : MonoBehaviour
     private readonly Color overlayColor = new Color(0.07f, 0.05f, 0.05f, 1f);
     private readonly Color hudTextColor = new Color(0.16f, 0.13f, 0.11f, 1f);
     private readonly Color hudMutedTextColor = new Color(0.31f, 0.25f, 0.21f, 1f);
-    private readonly Color hungerColor = new Color(0.87f, 0.31f, 0.19f, 1f);
-    private readonly Color thirstColor = new Color(0.28f, 0.66f, 0.82f, 1f);
-    private readonly Color barBackgroundColor = new Color(0.15f, 0.12f, 0.1f, 0.65f);
+
 
     private Font deathFont;
     private Image darkOverlay;
@@ -82,9 +81,6 @@ public class UIManager : MonoBehaviour
 
     private readonly List<Image> heartImages = new List<Image>(HeartCount);
     private readonly Coroutine[] heartRegenRoutines = new Coroutine[HeartCount];
-    private RectTransform hungerFillRect;
-    private RectTransform thirstFillRect;
-    private Sprite hudBarSprite;
     private Text survivalTimerText;
     private Text bestTimerText;
     private int targetHeartCount = -1;
@@ -217,10 +213,8 @@ public class UIManager : MonoBehaviour
 
     private void HideLegacyHud()
     {
-        // The scene-authored sliders are retained for backwards-compatible Inspector
-        // references, but the new HUD owns their presentation.
-        if (hungerBar != null) hungerBar.gameObject.SetActive(false);
-        if (thirstBar != null) thirstBar.gameObject.SetActive(false);
+        // Hearts still own health presentation, but hunger/thirst now use the
+        // scene-authored sliders directly, so only the health slider is hidden.
         if (healthBar != null) healthBar.gameObject.SetActive(false);
     }
 
@@ -263,7 +257,6 @@ public class UIManager : MonoBehaviour
 
         BuildHealthDisplay(root.transform);
         BuildTimerDisplay(root.transform);
-        BuildResourceDisplay(root.transform);
 
         bestSurvivalTime = PlayerPrefs.GetFloat(HighScoreKey, 0f);
         UpdateSurvivalTimer();
@@ -329,77 +322,6 @@ public class UIManager : MonoBehaviour
         rect.sizeDelta = new Vector2(420f, height);
     }
 
-    private void BuildResourceDisplay(Transform parent)
-    {
-        GameObject display = new GameObject("Bottom Resources", typeof(RectTransform));
-        display.transform.SetParent(parent, false);
-        RectTransform rect = display.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 0f);
-        rect.anchorMax = new Vector2(0.5f, 0f);
-        rect.pivot = new Vector2(0.5f, 0f);
-        rect.anchoredPosition = new Vector2(0f, 34f);
-        rect.sizeDelta = new Vector2(650f, 96f);
-
-        hungerFillRect = CreateResourceGroup(display.transform, "Hunger Display", "HUNGER", hungerIcon, hungerColor, -165f);
-        thirstFillRect = CreateResourceGroup(display.transform, "Thirst Display", "THIRST", thirstIcon, thirstColor, 165f);
-    }
-
-    private RectTransform CreateResourceGroup(Transform parent, string name, string label, Sprite iconSprite, Color fillColor, float xPosition)
-    {
-        GameObject group = new GameObject(name, typeof(RectTransform));
-        group.transform.SetParent(parent, false);
-        RectTransform groupRect = group.GetComponent<RectTransform>();
-        groupRect.anchorMin = new Vector2(0.5f, 0f);
-        groupRect.anchorMax = new Vector2(0.5f, 0f);
-        groupRect.pivot = new Vector2(0.5f, 0f);
-        groupRect.anchoredPosition = new Vector2(xPosition, 0f);
-        groupRect.sizeDelta = new Vector2(ResourceBarWidth, 96f);
-
-        Text title = CreateHudText(group.transform, "Label", label, 20, TextAnchor.MiddleCenter);
-        RectTransform titleRect = title.rectTransform;
-        titleRect.anchorMin = new Vector2(0.5f, 1f);
-        titleRect.anchorMax = new Vector2(0.5f, 1f);
-        titleRect.pivot = new Vector2(0.5f, 1f);
-        titleRect.anchoredPosition = Vector2.zero;
-        titleRect.sizeDelta = new Vector2(ResourceBarWidth, 26f);
-
-        Image icon = CreateImage(group.transform, "Icon", Color.white);
-        icon.sprite = iconSprite;
-        icon.preserveAspect = true;
-        icon.raycastTarget = false;
-        icon.enabled = iconSprite != null;
-        RectTransform iconRect = icon.rectTransform;
-        iconRect.anchorMin = new Vector2(0.5f, 1f);
-        iconRect.anchorMax = new Vector2(0.5f, 1f);
-        iconRect.pivot = new Vector2(0.5f, 1f);
-        iconRect.anchoredPosition = new Vector2(0f, -28f);
-        iconRect.sizeDelta = iconSprite != null ? new Vector2(26f, 26f) : Vector2.zero;
-
-        GameObject track = new GameObject("Track", typeof(RectTransform), typeof(Image));
-        track.transform.SetParent(group.transform, false);
-        RectTransform trackRect = track.GetComponent<RectTransform>();
-        trackRect.anchorMin = new Vector2(0.5f, 1f);
-        trackRect.anchorMax = new Vector2(0.5f, 1f);
-        trackRect.pivot = new Vector2(0.5f, 1f);
-        trackRect.anchoredPosition = new Vector2(0f, iconSprite != null ? -66f : -38f);
-        trackRect.sizeDelta = new Vector2(ResourceBarWidth, ResourceBarHeight);
-
-        Image background = track.GetComponent<Image>();
-        background.sprite = GetHudBarSprite();
-        background.color = barBackgroundColor;
-        background.raycastTarget = false;
-
-        Image fill = CreateImage(track.transform, "Fill", fillColor);
-        fill.sprite = background.sprite;
-        fill.raycastTarget = false;
-        RectTransform fillRect = fill.rectTransform;
-        fillRect.anchorMin = new Vector2(0f, 0f);
-        fillRect.anchorMax = new Vector2(0f, 1f);
-        fillRect.pivot = new Vector2(0f, 0.5f);
-        fillRect.anchoredPosition = Vector2.zero;
-        fillRect.sizeDelta = new Vector2(ResourceBarWidth, 0f);
-        return fillRect;
-    }
 
     private void UpdateHealthDisplay()
     {
@@ -495,8 +417,28 @@ public class UIManager : MonoBehaviour
             displayedThirst = Mathf.Lerp(displayedThirst, thirst, blend);
         }
 
-        SetResourceFillWidth(hungerFillRect, displayedHunger);
-        SetResourceFillWidth(thirstFillRect, displayedThirst);
+        if (hungerBar != null) hungerBar.value = displayedHunger;
+        if (thirstBar != null) thirstBar.value = displayedThirst;
+
+        SetIconAlpha(hungerIconColorImage, displayedHunger);
+        SetIconAlpha(thirstIconColorImage, displayedThirst);
+    }
+
+    private static void SetIconAlpha(Image colorIcon, float normalizedValue)
+    {
+        if (colorIcon == null) return;
+        Color c = colorIcon.color;
+        c.a = Mathf.Clamp01(normalizedValue);
+        colorIcon.color = c;
+    }
+
+
+    private static void SetResourceIconAlpha(Image colorIcon, float normalizedValue)
+    {
+        if (colorIcon == null) return;
+        Color c = colorIcon.color;
+        c.a = Mathf.Clamp01(normalizedValue);
+        colorIcon.color = c;
     }
 
     private void UpdateSurvivalTimer()
@@ -511,11 +453,7 @@ public class UIManager : MonoBehaviour
         if (bestTimerText != null) bestTimerText.text = "★ " + ClockText(bestSurvivalTime);
     }
 
-    private static void SetResourceFillWidth(RectTransform fillRect, float normalizedValue)
-    {
-        if (fillRect == null) return;
-        fillRect.sizeDelta = new Vector2(ResourceBarWidth * Mathf.Clamp01(normalizedValue), 0f);
-    }
+
 
     private static bool IsRunOver()
     {
@@ -695,21 +633,7 @@ public class UIManager : MonoBehaviour
         return image;
     }
 
-    private Sprite GetHudBarSprite()
-    {
-        if (hudBarSprite != null) return hudBarSprite;
 
-        Texture2D texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-        texture.name = "Runtime HUD Bar Texture";
-        texture.SetPixel(0, 0, Color.white);
-        texture.Apply(false, true);
-        texture.hideFlags = HideFlags.HideAndDontSave;
-
-        hudBarSprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
-        hudBarSprite.name = "Runtime HUD Bar Sprite";
-        hudBarSprite.hideFlags = HideFlags.HideAndDontSave;
-        return hudBarSprite;
-    }
 
     private static void AddSpacer(Transform parent, float height)
     {
