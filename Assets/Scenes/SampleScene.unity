@@ -446,6 +446,14 @@ MonoBehaviour:
   thirstBar: {fileID: 1238667495}
   healthBar: {fileID: 1546348964}
   playerSurvival: {fileID: 350990433}
+  halfLitHeartSprite: {fileID: 0}
+  fullHeartSprite: {fileID: 0}
+  emptyHeartSprite: {fileID: 0}
+  hungerIcon: {fileID: 0}
+  thirstIcon: {fileID: 0}
+  heartRegenFlashDuration: 0.4
+  heartRegenFlashCount: 2
+  resourceBarSmoothingSpeed: 10
   deathScreenPanel: {fileID: 83720762}
   survivalTimeText: {fileID: 1101259485}
   bestTimeText: {fileID: 278611024}
@@ -2069,7 +2077,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &697260393
 Transform:
   m_ObjectHideFlags: 0
@@ -3818,6 +3826,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1888758333}
+  - component: {fileID: 2146000002}
   m_Layer: 0
   m_Name: Environment
   m_TagString: Untagged
@@ -4110,6 +4119,21 @@ PolygonCollider2D:
       - {x: 7.0490913, y: 3.9981818}
       - {x: 6.5490913, y: 3.7490911}
   m_UseDelaunayMesh: 1
+--- !u!114 &2146000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1888758332}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b09a3e8e23e4a2f8d8c4f1a6f3c9e11, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minimumBounds: {x: -11.6, y: -6.67}
+  maximumBounds: {x: 12, y: 6.4}
+  wallThickness: 0.99
 --- !u!1 &2146000010
 GameObject:
   m_ObjectHideFlags: 0
