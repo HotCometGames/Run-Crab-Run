@@ -25,6 +25,17 @@ public class MainMenuController : MonoBehaviour
     [Tooltip("The gameplay scene loaded by the Play option.")]
     public string gameplaySceneName = "SampleScene";
 
+    [Header("Presentation")]
+    [Tooltip("Optional menu background. When unset, the image in Resources/Menu/MainMenuBackground is used.")]
+    [SerializeField] private Texture menuBackgroundTexture;
+
+    private const string MenuBackgroundResourcePath = "Menu/MainMenuBackground";
+    private const float MenuBackgroundOverlayAlpha = 0.10f;
+
+    // Sub-pages (How To Play / Settings / Credits) dim the artwork so the text reads
+    // clearly. 0.10 means the background is displayed at 10% of its original brightness.
+    private const float PageBackgroundBrightness = 0.10f;
+
     private readonly List<MenuOption> mainOptions = new List<MenuOption>();
 
     private Font font;
@@ -41,14 +52,25 @@ public class MainMenuController : MonoBehaviour
     // A lightweight sketchbook palette: cream paper, charcoal pencil, and pastel ink.
     private readonly Color backgroundColor = new Color(0.98f, 0.94f, 0.84f, 1f);
     private readonly Color primaryTextColor = new Color(0.17f, 0.14f, 0.12f, 1f);
-    private readonly Color mutedTextColor = new Color(0.42f, 0.35f, 0.30f, 1f);
     private readonly Color accentColor = new Color(0.78f, 0.31f, 0.25f, 1f);
     private readonly Color pastelTrackColor = new Color(0.80f, 0.71f, 0.62f, 1f);
     private readonly Color pastelFillColor = new Color(0.94f, 0.56f, 0.39f, 1f);
 
+    // Main menu options are keyed to the artwork: the selected line takes the orange of
+    // the crab and title lettering, the rest take the brown of the tree trunk.
+    private readonly Color optionSelectedColor = new Color(0.85f, 0.44f, 0.12f, 1f);
+    private readonly Color optionIdleColor = new Color(0.30f, 0.22f, 0.18f, 1f);
+
+    // Sub-pages sit on a heavily dimmed background, so their text uses a light
+    // counterpart of the same palette to stay readable.
+    private readonly Color pageTextColor = new Color(0.96f, 0.94f, 0.88f, 1f);
+    private readonly Color pageMutedTextColor = new Color(0.74f, 0.70f, 0.64f, 1f);
+    private readonly Color pageAccentColor = new Color(0.95f, 0.57f, 0.39f, 1f);
+
     private void Awake()
     {
         font = LoadComicSans();
+        LoadMenuBackground();
         EnsureMenuCamera();
         EnsureEventSystem();
         BuildMenu();
@@ -110,13 +132,12 @@ public class MainMenuController : MonoBehaviour
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
 
-        Image background = CreateImage(root.transform, "Background", backgroundColor);
-        Stretch(background.rectTransform);
+        CreateMenuBackground();
 
         mainPage = CreateFullPage("Main Page");
-        howToPlayPage = CreateFullPage("How To Play Page");
-        settingsPage = CreateFullPage("Settings Page");
-        creditsPage = CreateFullPage("Credits Page");
+        howToPlayPage = CreateFullPage("How To Play Page", true);
+        settingsPage = CreateFullPage("Settings Page", true);
+        creditsPage = CreateFullPage("Credits Page", true);
 
         BuildMainPage();
         BuildHowToPlayPage();
@@ -126,19 +147,31 @@ public class MainMenuController : MonoBehaviour
 
     private void BuildMainPage()
     {
-        GameObject column = CreateCenteredColumn(mainPage.transform, "Main Menu Column", 760f);
+        GameObject column = CreateCenteredColumn(mainPage.transform, "Main Menu Column", 500f);
+        RectTransform columnRect = column.GetComponent<RectTransform>();
+        columnRect.anchorMin = Vector2.zero;
+        columnRect.anchorMax = Vector2.zero;
+        columnRect.pivot = Vector2.zero;
+        columnRect.anchoredPosition = new Vector2(196f, 122f);
+
         VerticalLayoutGroup layout = column.GetComponent<VerticalLayoutGroup>();
-        layout.spacing = 10f;
-        layout.padding = new RectOffset(30, 30, 16, 16);
+        layout.childAlignment = TextAnchor.LowerLeft;
+        layout.spacing = 6f;
+        layout.padding = new RectOffset(12, 12, 8, 8);
 
         Text title = CreateText(column.transform, "Title", "RUN CRAB RUN", 84, TextAnchor.MiddleCenter, accentColor);
         title.horizontalOverflow = HorizontalWrapMode.Overflow;
         title.verticalOverflow = VerticalWrapMode.Overflow;
         SetLayoutHeight(title.gameObject, 112f);
 
+        // The supplied menu art already contains the game logo. Keeping this fallback
+        // title disabled avoids rendering the title twice while retaining a text-only
+        // menu if the background asset is intentionally removed later.
+        title.gameObject.SetActive(menuBackgroundTexture == null);
+
         GameObject choices = new GameObject("Choices", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(LayoutElement));
         choices.transform.SetParent(column.transform, false);
-        SetLayoutHeight(choices, 254f);
+        SetLayoutHeight(choices, 330f);
         VerticalLayoutGroup choicesLayout = choices.GetComponent<VerticalLayoutGroup>();
         choicesLayout.childAlignment = TextAnchor.MiddleLeft;
         choicesLayout.childControlWidth = true;
@@ -147,10 +180,10 @@ public class MainMenuController : MonoBehaviour
         choicesLayout.childForceExpandHeight = false;
         choicesLayout.spacing = 4f;
 
-        AddMainOption(choices.transform, "PLAY", 46, 1.16f, StartRun);
-        AddMainOption(choices.transform, "HOW TO PLAY", 30, 1.13f, ShowHowToPlay);
-        AddMainOption(choices.transform, "SETTINGS", 30, 1.13f, ShowSettings);
-        AddMainOption(choices.transform, "CREDITS", 30, 1.13f, ShowCredits);
+        AddMainOption(choices.transform, "PLAY", 60, 1.16f, StartRun);
+        AddMainOption(choices.transform, "HOW TO PLAY", 40, 1.13f, ShowHowToPlay);
+        AddMainOption(choices.transform, "SETTINGS", 40, 1.13f, ShowSettings);
+        AddMainOption(choices.transform, "CREDITS", 40, 1.13f, ShowCredits);
     }
 
     private void BuildHowToPlayPage()
@@ -198,11 +231,12 @@ public class MainMenuController : MonoBehaviour
 
         // Every role/name pair is a single child of Credits Content. The outer
         // column therefore spaces entries without ever splitting a pair apart.
-        AddCredit(content, "Art", "Annabelle");
-        AddCredit(content, "UI & Level Design", "Emily");
-        AddCredit(content, "Creature AI", "Rener");
-        AddCredit(content, "Systems & Polish", "Caleb");
-        AddCredit(content, "Heartbeat Sound", "Soundious");
+        AddCredit(content, "Technical Lead", "Kian");
+        AddCredit(content, "Systems & Team Lead", "Caleb");
+        AddCredit(content, "Art / Unpaid Slave Labor", "Annabelle");
+        AddCredit(content, "UI/UX", "Rener");
+        AddCredit(content, "SFX / Emotional Support", "Emily");
+        AddCredit(content, "Music", "Dylan");
         CreateBackChoice(creditsPage.transform, ShowMain);
     }
 
@@ -216,9 +250,11 @@ public class MainMenuController : MonoBehaviour
         Button button = optionObject.GetComponent<Button>();
         button.targetGraphic = hitArea;
         button.onClick.AddListener(action);
-        SetLayoutHeight(optionObject, caption == "PLAY" ? 82f : 58f);
+        SetLayoutHeight(optionObject, caption == "PLAY" ? 104f : 74f);
 
-        Text label = CreateText(optionObject.transform, "Label", caption, baseSize, TextAnchor.MiddleLeft, mutedTextColor);
+        Text label = CreateText(optionObject.transform, "Label", caption, baseSize, TextAnchor.MiddleLeft, optionIdleColor);
+        label.horizontalOverflow = HorizontalWrapMode.Overflow;
+        label.verticalOverflow = VerticalWrapMode.Overflow;
         Stretch(label.rectTransform);
         label.rectTransform.pivot = new Vector2(0f, 0.5f);
 
@@ -253,7 +289,7 @@ public class MainMenuController : MonoBehaviour
         {
             MenuOption option = mainOptions[i];
             bool selected = i == selectedOption;
-            Color targetColor = selected ? primaryTextColor : mutedTextColor;
+            Color targetColor = selected ? optionSelectedColor : optionIdleColor;
             float targetScale = selected ? option.selectedScale : 1f;
             float blend = 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime);
 
@@ -267,6 +303,9 @@ public class MainMenuController : MonoBehaviour
 
             string targetText = selected ? option.selectedText : option.normalText;
             if (option.label.text != targetText) option.label.text = targetText;
+
+            FontStyle targetStyle = selected ? FontStyle.Bold : FontStyle.Normal;
+            if (option.label.fontStyle != targetStyle) option.label.fontStyle = targetStyle;
         }
     }
 
@@ -279,12 +318,59 @@ public class MainMenuController : MonoBehaviour
         creditsPage.SetActive(page == Page.Credits);
     }
 
-    private GameObject CreateFullPage(string name)
+    private void LoadMenuBackground()
+    {
+        if (menuBackgroundTexture == null)
+            menuBackgroundTexture = Resources.Load<Texture2D>(MenuBackgroundResourcePath);
+    }
+
+    private void CreateMenuBackground()
+    {
+        if (menuBackgroundTexture == null)
+        {
+            Image fallback = CreateImage(root.transform, "Background", backgroundColor);
+            fallback.raycastTarget = false;
+            Stretch(fallback.rectTransform);
+            return;
+        }
+
+        RawImage background = CreateRawImage(root.transform, "Background", menuBackgroundTexture);
+        background.raycastTarget = false;
+        Stretch(background.rectTransform);
+
+        // EnvelopeParent fills every aspect ratio without stretching the artwork.
+        AspectRatioFitter fitter = background.gameObject.AddComponent<AspectRatioFitter>();
+        fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+        fitter.aspectRatio = (float)menuBackgroundTexture.width / menuBackgroundTexture.height;
+
+        Image overlay = CreateImage(root.transform, "Background Overlay", new Color(0f, 0f, 0f, MenuBackgroundOverlayAlpha));
+        overlay.raycastTarget = false;
+        Stretch(overlay.rectTransform);
+    }
+
+    private GameObject CreateFullPage(string name, bool dimBackground = false)
     {
         GameObject page = new GameObject(name, typeof(RectTransform));
         page.transform.SetParent(root.transform, false);
         Stretch(page.GetComponent<RectTransform>());
+        if (dimBackground) CreatePageDimOverlay(page.transform);
         return page;
+    }
+
+    // A black scrim added as the first child of a sub-page, so it sits above the shared
+    // menu artwork but behind that page's own content. The alpha compensates for the
+    // always-on background overlay, leaving the artwork at PageBackgroundBrightness.
+    private void CreatePageDimOverlay(Transform page)
+    {
+        float remaining = 1f - MenuBackgroundOverlayAlpha;
+        float alpha = remaining <= 0f
+            ? 1f
+            : Mathf.Clamp01(1f - PageBackgroundBrightness / remaining);
+
+        Image dim = CreateImage(page, "Page Dim Overlay", new Color(0f, 0f, 0f, alpha));
+        dim.raycastTarget = false;
+        Stretch(dim.rectTransform);
+        dim.rectTransform.SetAsFirstSibling();
     }
 
     private GameObject CreateCenteredColumn(Transform parent, string name, float width)
@@ -334,7 +420,7 @@ public class MainMenuController : MonoBehaviour
 
     private Text CreatePageTitle(Transform parent, string title)
     {
-        Text text = CreateText(parent, "Title", title, 56, TextAnchor.MiddleCenter, accentColor);
+        Text text = CreateText(parent, "Title", title, 56, TextAnchor.MiddleCenter, pageAccentColor);
         RectTransform rect = text.rectTransform;
         rect.anchorMin = new Vector2(0.5f, 1f);
         rect.anchorMax = new Vector2(0.5f, 1f);
@@ -412,12 +498,12 @@ public class MainMenuController : MonoBehaviour
 
     private void AddSectionHeader(Transform parent, string value)
     {
-        AddDisplayText(parent, value, 30, TextAnchor.MiddleLeft, accentColor, 34f);
+        AddDisplayText(parent, value, 30, TextAnchor.MiddleLeft, pageAccentColor, 34f);
     }
 
     private void AddParagraph(Transform parent, string value)
     {
-        Text text = AddDisplayText(parent, value, 22, TextAnchor.MiddleLeft, primaryTextColor, 34f);
+        Text text = AddDisplayText(parent, value, 22, TextAnchor.MiddleLeft, pageTextColor, 34f);
         text.horizontalOverflow = HorizontalWrapMode.Wrap;
         text.verticalOverflow = VerticalWrapMode.Overflow;
     }
@@ -435,9 +521,9 @@ public class MainMenuController : MonoBehaviour
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        Text left = CreateText(row.transform, "Name", leftValue, 22, TextAnchor.MiddleLeft, primaryTextColor);
+        Text left = CreateText(row.transform, "Name", leftValue, 22, TextAnchor.MiddleLeft, pageTextColor);
         AddLayoutWidth(left.gameObject, 0f, 1f);
-        Text right = CreateText(row.transform, "Value", rightValue, 22, TextAnchor.MiddleRight, primaryTextColor);
+        Text right = CreateText(row.transform, "Value", rightValue, 22, TextAnchor.MiddleRight, pageTextColor);
         AddLayoutWidth(right.gameObject, 280f, 0f);
     }
 
@@ -464,9 +550,9 @@ public class MainMenuController : MonoBehaviour
         rowLayout.childForceExpandWidth = true;
         rowLayout.childForceExpandHeight = false;
 
-        Text labelText = CreateText(labelRow.transform, "Label", label, 22, TextAnchor.MiddleLeft, primaryTextColor);
+        Text labelText = CreateText(labelRow.transform, "Label", label, 22, TextAnchor.MiddleLeft, pageTextColor);
         AddLayoutWidth(labelText.gameObject, 0f, 1f);
-        valueText = CreateText(labelRow.transform, "Value", Percentage(value), 22, TextAnchor.MiddleRight, accentColor);
+        valueText = CreateText(labelRow.transform, "Value", Percentage(value), 22, TextAnchor.MiddleRight, pageAccentColor);
         AddLayoutWidth(valueText.gameObject, 96f, 0f);
 
         Slider slider = CreateSlider(group.transform, label + " Slider", value);
@@ -524,8 +610,8 @@ public class MainMenuController : MonoBehaviour
     private void AddCredit(Transform parent, string role, string name)
     {
         Transform credit = CreateCompactGroup(parent, role + " Credit Entry", 6f);
-        AddDisplayText(credit, role, 23, TextAnchor.MiddleCenter, mutedTextColor, 26f);
-        AddDisplayText(credit, name, 29, TextAnchor.MiddleCenter, primaryTextColor, 32f);
+        AddDisplayText(credit, role, 23, TextAnchor.MiddleCenter, pageMutedTextColor, 26f);
+        AddDisplayText(credit, name, 29, TextAnchor.MiddleCenter, pageTextColor, 32f);
     }
 
     private Text AddDisplayText(Transform parent, string value, int size, TextAnchor alignment, Color color, float height)
@@ -548,10 +634,10 @@ public class MainMenuController : MonoBehaviour
         buttonObject.GetComponent<Image>().color = Color.clear;
         Button button = buttonObject.GetComponent<Button>();
         button.onClick.AddListener(action);
-        Text label = CreateText(buttonObject.transform, "Label", "> BACK", 27, TextAnchor.MiddleCenter, primaryTextColor);
+        Text label = CreateText(buttonObject.transform, "Label", "> BACK", 27, TextAnchor.MiddleCenter, pageTextColor);
         Stretch(label.rectTransform);
         EventTrigger trigger = buttonObject.GetComponent<EventTrigger>();
-        AddPointerEnter(trigger, () => label.color = accentColor);
+        AddPointerEnter(trigger, () => label.color = pageAccentColor);
     }
 
     private Text CreateText(Transform parent, string objectName, string value, int size, TextAnchor alignment, Color color)
@@ -574,6 +660,15 @@ public class MainMenuController : MonoBehaviour
         imageObject.transform.SetParent(parent, false);
         Image image = imageObject.GetComponent<Image>();
         image.color = color;
+        return image;
+    }
+
+    private static RawImage CreateRawImage(Transform parent, string name, Texture texture)
+    {
+        GameObject imageObject = new GameObject(name, typeof(RectTransform), typeof(RawImage));
+        imageObject.transform.SetParent(parent, false);
+        RawImage image = imageObject.GetComponent<RawImage>();
+        image.texture = texture;
         return image;
     }
 
