@@ -3200,6 +3200,7 @@ MonoBehaviour:
   imposterAnimalPrefabs:
   - {fileID: 7023619878355878992, guid: 4d9d98a44ed9a924eb7a3b7d6127439d, type: 3}
   - {fileID: 7023619878355878992, guid: bdf50cfbe65e45ea88069efecdf18028, type: 3}
+  initialHarmlessCount: 4
   maxTotalCreatures: 30
   maxWolves: 2
   maxFoxes: 2

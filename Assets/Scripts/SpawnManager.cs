@@ -25,6 +25,10 @@ public class SpawnManager : MonoBehaviour
     public GameObject[] harmlessAnimalPrefabs;
     public GameObject[] imposterAnimalPrefabs;
 
+    [Header("Initial Population")]
+    [Min(0), Tooltip("Guaranteed genuine animals spawned immediately before timed batches begin.")]
+    public int initialHarmlessCount = 4;
+
     [Header("Spawn Limits")]
     [Tooltip("Maximum total creatures alive at once. Batches won't exceed this cap.")]
     public int maxTotalCreatures = 50;
@@ -41,7 +45,122 @@ public class SpawnManager : MonoBehaviour
 
     private void Start()
     {
+        SpawnInitialHarmlessAnimals();
         StartCoroutine(SpawnLoop());
+    }
+
+    private void SpawnInitialHarmlessAnimals()
+    {
+        if (initialHarmlessCount <= 0 || spawnPoints == null || spawnPoints.Length == 0)
+            return;
+
+        CountCreatureGameObjects(out int currentCount, out _, out _);
+        int spawnCount = Mathf.Min(
+            initialHarmlessCount,
+            Mathf.Max(0, maxTotalCreatures - currentCount));
+        if (spawnCount <= 0) return;
+
+        List<GameObject> genuineHarmlessPrefabs = new List<GameObject>();
+        if (harmlessAnimalPrefabs != null)
+        {
+            foreach (GameObject prefab in harmlessAnimalPrefabs)
+            {
+                if (prefab == null ||
+                    prefab.GetComponent<HarmlessAnimal>() == null ||
+                    prefab.GetComponent<ImposterComponent>() != null ||
+                    prefab.GetComponent<Predator>() != null)
+                {
+                    continue;
+                }
+
+                genuineHarmlessPrefabs.Add(prefab);
+            }
+        }
+
+        if (genuineHarmlessPrefabs.Count == 0)
+        {
+            Debug.LogWarning($"{name}: cannot seed the initial population because no genuine harmless prefabs are configured.", this);
+            return;
+        }
+
+        // Cycle through the genuine prefab pool from a random starting point so the
+        // opening population is varied but stays balanced when several types exist.
+        int prefabOffset = Random.Range(0, genuineHarmlessPrefabs.Count);
+        for (int i = 0; i < spawnCount; i++)
+        {
+            if (!TryChooseInitialSpawnPosition(out Vector3 position))
+            {
+                Debug.LogWarning($"{name}: only placed {i} of {spawnCount} initial harmless animals because no clear spawn position remained.", this);
+                break;
+            }
+
+            GameObject prefab = genuineHarmlessPrefabs[(prefabOffset + i) % genuineHarmlessPrefabs.Count];
+            Instantiate(prefab, position, Quaternion.identity);
+
+            // Make each new collider visible to the next placement query this frame.
+            Physics2D.SyncTransforms();
+        }
+    }
+
+    private bool TryChooseInitialSpawnPosition(out Vector3 position)
+    {
+        Transform player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        position = transform.position;
+
+        // Keep the opening population outside the batch spawn disks. Otherwise the
+        // four stationary spawn-delay colliders would block the normal 0.5s batch.
+        float batchPointClearance = Mathf.Max(0f, spawnRadius) +
+            Mathf.Max(0f, minSpawnDistanceFromCreatures) + 0.75f;
+
+        for (int attempt = 0; attempt < 128; attempt++)
+        {
+            Transform point = spawnPoints[Random.Range(0, spawnPoints.Length)];
+            if (point == null) continue;
+
+            Vector2 direction = Random.insideUnitCircle.normalized;
+            if (direction.sqrMagnitude < 0.01f) continue;
+
+            float offset = Random.Range(batchPointClearance, batchPointClearance + 2f);
+            Vector3 candidate = point.position + (Vector3)(direction * offset);
+            if (!IsInsideWorldBounds(candidate, 0.75f)) continue;
+
+            bool clearOfPlayer = player == null ||
+                Vector2.Distance(candidate, player.position) >= minSpawnDistanceFromPlayer;
+            if (!clearOfPlayer || IsNearCreature(candidate)) continue;
+
+            bool clearOfBatchPoints = true;
+            foreach (Transform batchPoint in spawnPoints)
+            {
+                if (batchPoint != null &&
+                    Vector2.Distance(candidate, batchPoint.position) < batchPointClearance)
+                {
+                    clearOfBatchPoints = false;
+                    break;
+                }
+            }
+
+            if (!clearOfBatchPoints) continue;
+
+            position = candidate;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsInsideWorldBounds(Vector2 position, float margin)
+    {
+        if (WorldBoundary.Instance == null) return true;
+
+        Vector2 firstCorner = WorldBoundary.Instance.WorldMinimum;
+        Vector2 secondCorner = WorldBoundary.Instance.WorldMaximum;
+        float minX = Mathf.Min(firstCorner.x, secondCorner.x) + margin;
+        float maxX = Mathf.Max(firstCorner.x, secondCorner.x) - margin;
+        float minY = Mathf.Min(firstCorner.y, secondCorner.y) + margin;
+        float maxY = Mathf.Max(firstCorner.y, secondCorner.y) - margin;
+
+        return position.x >= minX && position.x <= maxX &&
+            position.y >= minY && position.y <= maxY;
     }
 
     private IEnumerator SpawnLoop()

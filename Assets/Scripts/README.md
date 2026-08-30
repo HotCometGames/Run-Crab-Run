@@ -186,6 +186,8 @@ not evenly scattered).
    - Drag your Deer/Sheep prefabs into `Harmless Animal Prefabs` and your
      `Sheep_Imposter`/`Deer_Imposter` prefabs into `Imposter Animal Prefabs`. There is
      intentionally no standalone Predator prefab list.
+   - `Initial Harmless Count` seeds genuine Deer/Sheep before the timed batches begin.
+     These opening animals never use the Imposter prefab pool.
    - The default live scene caps Wolf identities at 2 and Fox identities at 2. Hidden
      Predator components on unrevealed Imposters reserve a slot, so revealing one can
      never push the species above its cap.
